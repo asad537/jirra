@@ -165,7 +165,10 @@ const starterActivity: { [key: string]: Activity[] } = {
 export default function Home() {
   const [tickets, setTickets] = useState(seed),
     [query, setQuery] = useState(""),
-    [filter, setFilter] = useState("All tickets"),
+    [statusFilter, setStatusFilter] = useState("All tickets"),
+    [assigneeFilter, setAssigneeFilter] = useState("All assignees"),
+    [typeFilter, setTypeFilter] = useState("All types"),
+    [priorityFilter, setPriorityFilter] = useState("All priorities"),
     [view, setView] = useState<"Board" | "List">("Board"),
     [modal, setModal] = useState(false),
     [selected, setSelected] = useState<Ticket | null>(null),
@@ -186,10 +189,26 @@ export default function Home() {
           `${t.id} ${t.title} ${t.tag}`
             .toLowerCase()
             .includes(query.toLowerCase()) &&
-          (filter === "All tickets" || t.priority === filter),
+          (statusFilter === "All tickets" || t.status === statusFilter) &&
+          (assigneeFilter === "All assignees" || t.who === assigneeFilter) &&
+          (typeFilter === "All types" || t.type === typeFilter) &&
+          (priorityFilter === "All priorities" ||
+            t.priority === priorityFilter),
       ),
-    [tickets, query, filter],
+    [tickets, query, statusFilter, assigneeFilter, typeFilter, priorityFilter],
   );
+  const clearFilters = () => {
+    setStatusFilter("All tickets");
+    setAssigneeFilter("All assignees");
+    setTypeFilter("All types");
+    setPriorityFilter("All priorities");
+  };
+  const activeFilters = [
+    statusFilter !== "All tickets",
+    assigneeFilter !== "All assignees",
+    typeFilter !== "All types",
+    priorityFilter !== "All priorities",
+  ].filter(Boolean).length;
   const requestMove = (id: string, to: Status) => {
     const t = tickets.find((x) => x.id === id);
     if (t && t.status !== to) setPending({ id, from: t.status, to });
@@ -384,18 +403,56 @@ export default function Home() {
           <div className="tools">
             <div>
               <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
+                aria-label="Filter by status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option>All tickets</option>
+                {cols.map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Filter by assignee"
+                value={assigneeFilter}
+                onChange={(e) => setAssigneeFilter(e.target.value)}
+              >
+                <option>All assignees</option>
+                {Object.entries(people).map(([id, p]) => (
+                  <option value={id} key={id}>
+                    ♙ {p[0]}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Filter by type"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+              >
+                <option>All types</option>
+                {["Task", "Bug", "Feature", "Improvement"].map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Filter by priority"
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+              >
+                <option>All priorities</option>
                 {["Urgent", "High", "Medium", "Low"].map((x) => (
                   <option key={x}>{x}</option>
                 ))}
               </select>
-              <button>♙ Assignee⌄</button>
-              <button>◇ Type⌄</button>
-              <button>⚑ Priority⌄</button>
-              <button>＋ More</button>
+              <button
+                className={
+                  activeFilters ? "clear-filter active" : "clear-filter"
+                }
+                onClick={clearFilters}
+                disabled={!activeFilters}
+              >
+                × Clear {activeFilters ? `(${activeFilters})` : ""}
+              </button>
             </div>
             <button className="mini-stack">
               <Avatar id="AK" />
@@ -502,7 +559,10 @@ export default function Home() {
             setSelected(null);
           }}
         >
-          <div className={`modal ${selected ? "ticket-modal" : ""}`} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className={`modal ${selected ? "ticket-modal" : ""}`}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <button
               className="close"
               onClick={() => {
@@ -610,7 +670,8 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="activity-heading">
-                    <h4>Activity</h4><span>{selected.comments} comments</span>
+                    <h4>Activity</h4>
+                    <span>{selected.comments} comments</span>
                   </div>
                   <div className="activity-list">
                     {(activities[selected.id] || []).length ? (
@@ -618,14 +679,29 @@ export default function Home() {
                         <div className={`activity ${item.kind}`} key={item.id}>
                           <Avatar id={item.author} />
                           <div>
-                            <p><b>{people[item.author][0]}</b>{item.kind === "status" ? " changed the status" : " commented"}</p>
-                            {item.kind === "status" && <p className="status-change"><span>{item.from}</span><i>→</i><span>{item.to}</span></p>}
+                            <p>
+                              <b>{people[item.author][0]}</b>
+                              {item.kind === "status"
+                                ? " changed the status"
+                                : " commented"}
+                            </p>
+                            {item.kind === "status" && (
+                              <p className="status-change">
+                                <span>{item.from}</span>
+                                <i>→</i>
+                                <span>{item.to}</span>
+                              </p>
+                            )}
                             <p className="activity-text">{item.text}</p>
                             <small>{item.time}　·　Reply</small>
                           </div>
                         </div>
                       ))
-                    ) : <p className="empty-activity">No activity yet. Add the first comment.</p>}
+                    ) : (
+                      <p className="empty-activity">
+                        No activity yet. Add the first comment.
+                      </p>
+                    )}
                   </div>
                 </>
               )
@@ -635,12 +711,37 @@ export default function Home() {
       )}
       {pending && (
         <div className="status-overlay" onMouseDown={() => setPending(null)}>
-          <div className="status-dialog" onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="status-dialog"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <div className="status-icon">↗</div>
-            <div><small>STATUS CHANGE</small><h3>Move {pending.id} to {pending.to}?</h3></div>
-            <p><span>{pending.from}</span><i>→</i><span>{pending.to}</span></p>
-            <label>Comment <em>Optional</em><textarea autoFocus value={statusComment} onChange={(e)=>setStatusComment(e.target.value)} placeholder="Explain what changed, share a handoff note, or mention @someone…" /></label>
-            <div className="modal-actions"><button onClick={()=>setPending(null)}>Cancel</button><button className="primary" onClick={confirmMove}>Move ticket</button></div>
+            <div>
+              <small>STATUS CHANGE</small>
+              <h3>
+                Move {pending.id} to {pending.to}?
+              </h3>
+            </div>
+            <p>
+              <span>{pending.from}</span>
+              <i>→</i>
+              <span>{pending.to}</span>
+            </p>
+            <label>
+              Comment <em>Optional</em>
+              <textarea
+                autoFocus
+                value={statusComment}
+                onChange={(e) => setStatusComment(e.target.value)}
+                placeholder="Explain what changed, share a handoff note, or mention @someone…"
+              />
+            </label>
+            <div className="modal-actions">
+              <button onClick={() => setPending(null)}>Cancel</button>
+              <button className="primary" onClick={confirmMove}>
+                Move ticket
+              </button>
+            </div>
           </div>
         </div>
       )}

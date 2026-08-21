@@ -333,6 +333,19 @@ nav em {
   font-weight: 650;
   margin-right: 6px;
 }
+.tools select {
+  cursor: pointer;
+  max-width: 155px;
+}
+.tools .clear-filter.active {
+  color: #5548c8;
+  border-color: #c9c3f5;
+  background: #f1efff;
+}
+.tools .clear-filter:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .mini-stack {
   display: flex;
   align-items: center;
@@ -712,7 +725,21 @@ article footer .avatar {
     white-space: nowrap;
   }
   .tools {
-    overflow: auto;
+    height: auto;
+    padding: 14px 0;
+    overflow: visible;
+  }
+  .tools > div {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .tools select,
+  .tools button {
+    width: 100%;
+    max-width: none;
+    margin: 0;
   }
   .mini-stack {
     display: none !important;
@@ -738,33 +765,196 @@ article footer .avatar {
   }
 }
 
-.ticket-modal { width: min(700px, 100%); max-height: 88vh; overflow: auto; }
-.comment-box { display: flex; gap: 10px; margin: 24px 0; padding-top: 20px; border-top: 1px solid #e9e7e3; }
-.comment-box > div { flex: 1; border: 1px solid #dcd9d4; border-radius: 8px; background: #fff; overflow: hidden; }
-.comment-box textarea { display: block; width: 100%; height: 72px; border: 0; outline: 0; padding: 12px; resize: vertical; font: 12px Arial; }
-.comment-box > div > div { height: 40px; border-top: 1px solid #efede9; background: #faf9f7; display: flex; align-items: center; justify-content: space-between; padding: 0 8px 0 12px; color: #9b97a0; }
-.comment-box button { height: 28px; border: 0; border-radius: 5px; background: #6052d7; color: #fff; padding: 0 12px; font-weight: 700; }
-.comment-box button:disabled { background: #d2cfd9; }
-.activity-heading { display: flex; align-items: center; justify-content: space-between; }
-.activity-heading h4 { margin: 10px 0; }
-.activity-heading span { font-size: 10px; color: #999; }
-.activity-list { display: flex; flex-direction: column; }
-.activity { display: flex; gap: 10px; padding: 15px 0; border-top: 1px solid #eeece9; }
-.activity > div { flex: 1; }
-.activity p { margin: 0 0 7px; color: #6b6870; font-size: 11px; }
-.activity .activity-text { font-size: 12px; line-height: 1.5; color: #3e3b43; background: #f8f7f5; border-radius: 7px; padding: 10px 12px; }
-.activity small { color: #aaa; font-size: 9px; }
-.status-change { display: flex; align-items: center; gap: 7px; }
-.status-change span, .status-dialog > p span { background: #eeecff; color: #5548c8; border-radius: 4px; padding: 4px 7px; font-size: 9px; font-weight: 800; }
-.status-change i, .status-dialog > p i { color: #aaa; font-style: normal; }
-.empty-activity { color: #999; text-align: center; padding: 20px; }
-.status-overlay { position: fixed; inset: 0; background: #211d296e; backdrop-filter: blur(2px); z-index: 40; display: grid; place-items: center; padding: 20px; }
-.status-dialog { width: min(470px, 100%); background: #fff; border-radius: 13px; box-shadow: 0 25px 80px #17121f55; padding: 25px; position: relative; }
-.status-icon { float: left; width: 38px; height: 38px; border-radius: 9px; background: #eeecff; color: #5d50d1; display: grid; place-items: center; font-size: 18px; margin-right: 12px; }
-.status-dialog > div:nth-child(2) small { font-size: 8px; letter-spacing: .1em; color: #8179bc; font-weight: 800; }
-.status-dialog h3 { margin: 4px 0 20px; font: 700 19px Georgia; }
-.status-dialog > p { clear: both; display: flex; align-items: center; justify-content: center; gap: 9px; background: #f8f7f5; border-radius: 7px; padding: 11px; }
-.status-dialog label { display: flex; flex-direction: column; gap: 8px; margin-top: 17px; font-size: 10px; font-weight: 800; color: #625e67; }
-.status-dialog label em { float: right; font-weight: 400; color: #aaa; }
-.status-dialog textarea { height: 85px; border: 1px solid #ddd9d4; border-radius: 7px; padding: 11px; resize: vertical; outline: 0; }
-.status-dialog textarea:focus { border-color: #7163db; box-shadow: 0 0 0 3px #7163db18; }
+.ticket-modal {
+  width: min(700px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+}
+.comment-box {
+  display: flex;
+  gap: 10px;
+  margin: 24px 0;
+  padding-top: 20px;
+  border-top: 1px solid #e9e7e3;
+}
+.comment-box > div {
+  flex: 1;
+  border: 1px solid #dcd9d4;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.comment-box textarea {
+  display: block;
+  width: 100%;
+  height: 72px;
+  border: 0;
+  outline: 0;
+  padding: 12px;
+  resize: vertical;
+  font: 12px Arial;
+}
+.comment-box > div > div {
+  height: 40px;
+  border-top: 1px solid #efede9;
+  background: #faf9f7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 12px;
+  color: #9b97a0;
+}
+.comment-box button {
+  height: 28px;
+  border: 0;
+  border-radius: 5px;
+  background: #6052d7;
+  color: #fff;
+  padding: 0 12px;
+  font-weight: 700;
+}
+.comment-box button:disabled {
+  background: #d2cfd9;
+}
+.activity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.activity-heading h4 {
+  margin: 10px 0;
+}
+.activity-heading span {
+  font-size: 10px;
+  color: #999;
+}
+.activity-list {
+  display: flex;
+  flex-direction: column;
+}
+.activity {
+  display: flex;
+  gap: 10px;
+  padding: 15px 0;
+  border-top: 1px solid #eeece9;
+}
+.activity > div {
+  flex: 1;
+}
+.activity p {
+  margin: 0 0 7px;
+  color: #6b6870;
+  font-size: 11px;
+}
+.activity .activity-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #3e3b43;
+  background: #f8f7f5;
+  border-radius: 7px;
+  padding: 10px 12px;
+}
+.activity small {
+  color: #aaa;
+  font-size: 9px;
+}
+.status-change {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.status-change span,
+.status-dialog > p span {
+  background: #eeecff;
+  color: #5548c8;
+  border-radius: 4px;
+  padding: 4px 7px;
+  font-size: 9px;
+  font-weight: 800;
+}
+.status-change i,
+.status-dialog > p i {
+  color: #aaa;
+  font-style: normal;
+}
+.empty-activity {
+  color: #999;
+  text-align: center;
+  padding: 20px;
+}
+.status-overlay {
+  position: fixed;
+  inset: 0;
+  background: #211d296e;
+  backdrop-filter: blur(2px);
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.status-dialog {
+  width: min(470px, 100%);
+  background: #fff;
+  border-radius: 13px;
+  box-shadow: 0 25px 80px #17121f55;
+  padding: 25px;
+  position: relative;
+}
+.status-icon {
+  float: left;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: #eeecff;
+  color: #5d50d1;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  margin-right: 12px;
+}
+.status-dialog > div:nth-child(2) small {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: #8179bc;
+  font-weight: 800;
+}
+.status-dialog h3 {
+  margin: 4px 0 20px;
+  font: 700 19px Georgia;
+}
+.status-dialog > p {
+  clear: both;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: #f8f7f5;
+  border-radius: 7px;
+  padding: 11px;
+}
+.status-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 17px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #625e67;
+}
+.status-dialog label em {
+  float: right;
+  font-weight: 400;
+  color: #aaa;
+}
+.status-dialog textarea {
+  height: 85px;
+  border: 1px solid #ddd9d4;
+  border-radius: 7px;
+  padding: 11px;
+  resize: vertical;
+  outline: 0;
+}
+.status-dialog textarea:focus {
+  border-color: #7163db;
+  box-shadow: 0 0 0 3px #7163db18;
+}

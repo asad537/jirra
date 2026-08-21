@@ -17,6 +17,15 @@ body {
     13px Arial,
     sans-serif;
 }
+.auth-page { min-height:100vh; display:grid; place-items:center; padding:24px; background:radial-gradient(circle at top,#ebe8ff,#f7f6f3 58%); }
+.auth-card { width:min(420px,100%); background:#fff; border:1px solid var(--line); border-radius:18px; padding:38px; box-shadow:0 24px 70px #352c7218; display:flex; flex-direction:column; gap:15px; }
+.auth-card h1 { margin:2px 0 0; font:700 32px Georgia; }
+.auth-card p,.auth-card small { color:var(--muted); }
+.auth-card label { display:flex; flex-direction:column; gap:7px; font-weight:700; }
+.auth-card input { height:45px; border:1px solid #d9d6df; border-radius:8px; padding:0 12px; outline:none; }
+.auth-card input:focus { border-color:var(--purple); box-shadow:0 0 0 3px #6052d718; }
+.auth-logo { width:48px; height:48px; display:grid; place-items:center; color:#fff; border-radius:13px; background:linear-gradient(145deg,#786aed,#4d41bd); font:700 27px Georgia; }
+.auth-error { color:#b7333a; background:#fff0f0; padding:10px 12px; border-radius:7px; }
 button,
 select,
 input,

@@ -1,5 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+const apiPath = (path: string) =>
+  typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? `http://localhost:4001${path}`
+    : path;
+const apiFetch = (path: string, init: RequestInit = {}) =>
+  fetch(apiPath(path), { ...init, credentials: "include" });
 type Status = "To Do" | "In Progress" | "In Review" | "Done";
 type P = "Low" | "Medium" | "High" | "Urgent";
 type Project = {
@@ -232,7 +238,17 @@ export default function Home() {
     >(null),
     [notice, setNotice] = useState(""),
     [syncing, setSyncing] = useState(true),
-    [dataError, setDataError] = useState("");
+    [dataError, setDataError] = useState(""),
+    [user, setUser] = useState<{id:number;name:string;email:string;role:string}|null>(null),
+    [authLoading, setAuthLoading] = useState(true),
+    [loginEmail, setLoginEmail] = useState("admin@jirra.local"),
+    [loginPassword, setLoginPassword] = useState(""),
+    [loginError, setLoginError] = useState(""),
+    [adminUsers, setAdminUsers] = useState<Array<{id:number;name:string;email:string;role:string;active:number}>>([]),
+    [inviteName, setInviteName] = useState(""),
+    [inviteEmail, setInviteEmail] = useState(""),
+    [invitePassword, setInvitePassword] = useState(""),
+    [workspaceSettings, setWorkspaceSettings] = useState({workspaceName:"TaskFlow",allowInvites:true,emailNotifications:true,defaultView:"Board"});
   const shown = useMemo(
     () =>
       tickets.filter(
@@ -266,7 +282,7 @@ export default function Home() {
   };
   const loadProjects = async () => {
     try {
-      const r = await fetch("/api/projects", { cache: "no-store" }),
+      const r = await apiFetch("/api/projects", { cache: "no-store" }),
         d = await r.json();
       if (!r.ok) throw new Error(d.error);
       setProjects(d.projects);
@@ -276,7 +292,7 @@ export default function Home() {
   };
   const loadData = async (key = activeProject.key) => {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/tickets?project=${encodeURIComponent(key)}`,
         { cache: "no-store" },
       );
@@ -342,8 +358,17 @@ export default function Home() {
     }
   };
   useEffect(() => {
-    void loadProjects();
-    void loadData("PF");
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/auth/me", { cache: "no-store" });
+        const data = await response.json();
+        if (response.ok) {
+          setUser(data.user);
+          await loadProjects();
+          await loadData("PF");
+        }
+      } finally { setAuthLoading(false); }
+    })();
     const keys = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -377,7 +402,7 @@ export default function Home() {
   const createProject = async () => {
     setSyncing(true);
     try {
-      const r = await fetch("/api/projects", {
+      const r = await apiFetch("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -399,6 +424,25 @@ export default function Home() {
       setSyncing(false);
     }
   };
+  const loadAdmin = async () => {
+    const [usersResponse, settingsResponse] = await Promise.all([apiFetch("/api/users"), apiFetch("/api/settings")]);
+    if (usersResponse.ok) setAdminUsers((await usersResponse.json()).users);
+    if (settingsResponse.ok) setWorkspaceSettings((await settingsResponse.json()).settings);
+  };
+  const addUser = async () => {
+    try {
+      const response = await apiFetch("/api/users", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:inviteName,email:inviteEmail,password:invitePassword,role:"user"}) });
+      const data=await response.json(); if(!response.ok) throw new Error(data.error);
+      setInviteName(""); setInviteEmail(""); setInvitePassword(""); await loadAdmin(); setPanel("admin"); flash("User added successfully");
+    } catch(error) { flash(error instanceof Error ? error.message : "Unable to add user"); }
+  };
+  const saveSettings = async () => {
+    try {
+      const response=await apiFetch("/api/settings", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(workspaceSettings) });
+      const data=await response.json(); if(!response.ok) throw new Error(data.error);
+      setWorkspaceSettings(data.settings); setPanel(null); flash("Workspace settings saved in MySQL");
+    } catch(error) { flash(error instanceof Error ? error.message : "Unable to save settings"); }
+  };
   const requestMove = (id: string, to: Status) => {
     const t = tickets.find((x) => x.id === id);
     if (t && t.status !== to) setPending({ id, from: t.status, to });
@@ -407,7 +451,7 @@ export default function Home() {
     if (!pending) return;
     setSyncing(true);
     try {
-      const response = await fetch("/api/tickets", {
+      const response = await apiFetch("/api/tickets", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -434,7 +478,7 @@ export default function Home() {
     if (!selected || !comment.trim()) return;
     setSyncing(true);
     try {
-      const response = await fetch("/api/comments", {
+      const response = await apiFetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticketId: selected.id, body: comment }),
@@ -454,7 +498,7 @@ export default function Home() {
     if (!title.trim()) return;
     setSyncing(true);
     try {
-      const response = await fetch("/api/tickets", {
+      const response = await apiFetch("/api/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -478,6 +522,18 @@ export default function Home() {
       setSyncing(false);
     }
   };
+  const login = async (event: React.FormEvent) => {
+    event.preventDefault(); setLoginError(""); setAuthLoading(true);
+    try {
+      const response = await apiFetch("/api/auth/login", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:loginEmail,password:loginPassword}) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Login failed");
+      setUser(data.user); await loadProjects(); await loadData("PF");
+    } catch (error) { setLoginError(error instanceof Error ? error.message : "Login failed"); }
+    finally { setAuthLoading(false); }
+  };
+  if (authLoading && !user) return <div className="auth-page"><div className="auth-card"><div className="auth-logo">T</div><h1>TaskFlow</h1><p>Connecting to your local MySQL workspace…</p></div></div>;
+  if (!user) return <div className="auth-page"><form className="auth-card" onSubmit={login}><div className="auth-logo">T</div><h1>Welcome back</h1><p>Sign in to manage projects, tickets and your team.</p><label>Email<input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} required /></label><label>Password<input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} autoFocus required /></label>{loginError&&<div className="auth-error">{loginError}</div>}<button className="panel-primary" disabled={authLoading}>Sign in</button><small>Local XAMPP · MySQL secured session</small></form></div>;
   return (
     <main>
       <aside>
@@ -530,8 +586,8 @@ export default function Home() {
         </nav>
         <div className="aside-bottom">
           <a onClick={() => setView("Reports")}>▥ Reports</a>
-          <a onClick={() => setPanel("admin")}>♛ Admin Console</a>
-          <a onClick={() => setPanel("settings")}>⚙ Settings</a>
+          <a onClick={() => { setPanel("admin"); void loadAdmin(); }}>♛ Admin Console</a>
+          <a onClick={() => { setPanel("settings"); void loadAdmin(); }}>⚙ Settings</a>
           <div className="profile">
             <button
               className="profile-trigger"
@@ -1086,26 +1142,15 @@ export default function Home() {
                   Add a teammate to {activeProject.name}. They will be able to
                   view and update project tickets.
                 </p>
-                <label>
-                  Email address
-                  <input autoFocus placeholder="name@company.com" />
-                </label>
-                <label>
-                  Project role
-                  <select>
-                    <option>Member</option>
-                    <option>Project manager</option>
-                    <option>Viewer</option>
-                  </select>
-                </label>
+                <label>Full name<input autoFocus value={inviteName} onChange={e=>setInviteName(e.target.value)} placeholder="Full name" /></label>
+                <label>Email address<input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@company.com" /></label>
+                <label>Temporary password<input type="password" value={invitePassword} onChange={e=>setInvitePassword(e.target.value)} placeholder="Minimum 8 characters" /></label>
                 <button
                   className="panel-primary"
-                  onClick={() => {
-                    setPanel(null);
-                    flash("Invitation prepared successfully");
-                  }}
+                  disabled={inviteName.length<2||!inviteEmail.includes("@")||invitePassword.length<8}
+                  onClick={addUser}
                 >
-                  Send invitation
+                  Create user
                 </button>
               </>
             )}
@@ -1141,26 +1186,15 @@ export default function Home() {
             )}
             {panel === "settings" && (
               <>
-                <small>PRINTFLOW</small>
-                <h2>Project settings</h2>
-                <label>
-                  Project name
-                  <input defaultValue={activeProject.name} />
-                </label>
-                <label>
-                  Project key
-                  <input defaultValue={activeProject.key} />
-                </label>
-                <label>
-                  Description
-                  <textarea defaultValue={activeProject.description} />
-                </label>
+                <small>MYSQL WORKSPACE</small>
+                <h2>Workspace settings</h2>
+                <label>Workspace name<input value={workspaceSettings.workspaceName} onChange={e=>setWorkspaceSettings({...workspaceSettings,workspaceName:e.target.value})} /></label>
+                <label>Default view<select value={workspaceSettings.defaultView} onChange={e=>setWorkspaceSettings({...workspaceSettings,defaultView:e.target.value})}><option>Board</option><option>List</option><option>Reports</option></select></label>
+                <label><input type="checkbox" checked={workspaceSettings.allowInvites} onChange={e=>setWorkspaceSettings({...workspaceSettings,allowInvites:e.target.checked})} /> Allow admins to add users</label>
+                <label><input type="checkbox" checked={workspaceSettings.emailNotifications} onChange={e=>setWorkspaceSettings({...workspaceSettings,emailNotifications:e.target.checked})} /> Enable notifications</label>
                 <button
                   className="panel-primary"
-                  onClick={() => {
-                    setPanel(null);
-                    flash("Project settings saved");
-                  }}
+                  onClick={saveSettings}
                 >
                   Save changes
                 </button>
@@ -1241,50 +1275,25 @@ export default function Home() {
                 <div className="admin-user">
                   <Avatar id="AK" />
                   <span>
-                    <b>Ahmed Khan</b>
-                    <small>Super Admin · Signed in securely</small>
+                    <b>{user.name}</b>
+                    <small>{user.email} · Signed in securely</small>
                   </span>
                 </div>
                 <h3 className="panel-section">User management</h3>
-                <div className="member-row">
-                  <Avatar id="ZM" />
-                  <span>
-                    <b>Zara Malik</b>
-                    <small>Project Manager · PrintFlow</small>
-                  </span>
-                  <button onClick={() => flash("Zara's role editor opened")}>
-                    Edit
-                  </button>
-                </div>
-                <div className="member-row">
-                  <Avatar id="SR" />
-                  <span>
-                    <b>Saad Raza</b>
-                    <small>Member · 2 projects</small>
-                  </span>
-                  <button onClick={() => flash("Saad's role editor opened")}>
-                    Edit
-                  </button>
-                </div>
-                <div className="member-row">
-                  <Avatar id="HN" />
-                  <span>
-                    <b>Hira Noor</b>
-                    <small>Member · HelpDesk</small>
-                  </span>
-                  <button onClick={() => flash("Hira's role editor opened")}>
-                    Edit
-                  </button>
-                </div>
+                {adminUsers.map((member) => (
+                  <div className="member-row" key={member.id}>
+                    <i className="avatar" style={{ background: "#6052d7" }}>{member.name.split(/\s+/).map((x) => x[0]).join("").slice(0, 2)}</i>
+                    <span><b>{member.name}</b><small>{member.email} · {member.role.replace("_", " ")}</small></span>
+                    <button onClick={async () => { await apiFetch(`/api/users/${member.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: member.role, active: !member.active }) }); await loadAdmin(); flash(member.active ? "User disabled" : "User enabled"); }}>{member.active ? "Disable" : "Enable"}</button>
+                  </div>
+                ))}
                 <button
                   className="panel-primary"
                   onClick={() => setPanel("invite")}
                 >
                   ＋ Add user
                 </button>
-                <a className="signout" href="/signout-with-chatgpt?return_to=/">
-                  Sign out securely
-                </a>
+                <button className="signout" onClick={async()=>{await apiFetch("/api/auth/logout",{method:"POST"});setUser(null);setPanel(null);}}>Sign out securely</button>
               </>
             )}
             {panel === "actions" && (

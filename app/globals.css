@@ -265,48 +265,78 @@ nav em {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #999;
+  color: #777;
+  background: #f4f5f7;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+.search:focus-within {
+  background: #fff;
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px rgba(96, 82, 215, 0.15);
 }
 .search input {
   width: 100%;
   border: 0;
   outline: 0;
+  background: transparent;
+  color: #333;
+  font-size: 14px;
 }
-.search kbd {
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  background: #f8f7f5;
-  padding: 3px 6px;
-  font-size: 9px;
+.search input::placeholder {
+  color: #999;
+}
+.search-icon {
+  width: 16px;
+  height: 16px;
+  color: #999;
+  transition: color 0.2s ease;
+}
+.search:focus-within .search-icon {
+  color: var(--purple);
 }
 .account {
   display: flex;
   align-items: center;
   gap: 14px;
 }
-.account button {
-  border: 0;
-  background: none;
+.account .icon-btn {
+  border: 1px solid transparent;
+  background: transparent;
   position: relative;
   color: #777;
-}
-.account button:first-child {
-  border: 1px solid #ddd;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  width: 22px;
-  height: 22px;
-  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.account .icon-btn:hover {
+  background: #f4f5f7;
+  color: #333;
 }
 .account em {
   position: absolute;
   background: #ec6068;
   color: #fff;
   border: 2px solid #fff;
-  border-radius: 9px;
-  font-size: 8px;
-  top: -8px;
-  right: -8px;
-  padding: 1px 4px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 800;
+  font-style: normal;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
 }
 .content {
   max-width: 1500px;

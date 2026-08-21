@@ -15,7 +15,7 @@ type Ticket = {
 };
 type Activity = {
   id: number;
-  kind: "comment" | "status";
+  kind: "comment" | "status" | "created";
   author: string;
   text: string;
   time: string;
@@ -174,6 +174,9 @@ export default function Home() {
     [selected, setSelected] = useState<Ticket | null>(null),
     [drag, setDrag] = useState(""),
     [title, setTitle] = useState(""),
+    [newType, setNewType] = useState("Task"),
+    [newPriority, setNewPriority] = useState("Medium"),
+    [newDescription, setNewDescription] = useState(""),
     [activities, setActivities] = useState(starterActivity),
     [comment, setComment] = useState(""),
     [pending, setPending] = useState<{
@@ -191,7 +194,9 @@ export default function Home() {
       | "projects"
       | "actions"
     >(null),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [syncing, setSyncing] = useState(true),
+    [dataError, setDataError] = useState("");
   const shown = useMemo(
     () =>
       tickets.filter(
@@ -223,7 +228,72 @@ export default function Home() {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2200);
   };
+  const loadData = async () => {
+    try {
+      const response = await fetch("/api/tickets", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to load tickets");
+      const grouped: { [key: string]: Activity[] } = {};
+      for (const a of data.activities as Array<{
+        id: number;
+        ticketId: string;
+        kind: Activity["kind"];
+        authorName: string;
+        body: string;
+        fromStatus?: Status;
+        toStatus?: Status;
+        createdAt: string;
+      }>) {
+        const initials =
+          Object.entries(people).find(([, p]) =>
+            a.authorName
+              .toLowerCase()
+              .includes(p[0].split(" ")[0].toLowerCase()),
+          )?.[0] || "AK";
+        (grouped[a.ticketId] ||= []).push({
+          id: a.id,
+          kind: a.kind,
+          author: initials,
+          text: a.body,
+          time: new Date(a.createdAt.replace(" ", "T") + "Z").toLocaleString(),
+          from: a.fromStatus,
+          to: a.toStatus,
+        });
+      }
+      const rows = (
+        data.tickets as Array<{
+          id: string;
+          title: string;
+          type: string;
+          priority: P;
+          status: Status;
+          assignee: string;
+          dueDate?: string;
+          label: string;
+        }>
+      ).map((t) => ({
+        id: t.id,
+        title: t.title,
+        type: t.type,
+        priority: t.priority,
+        status: t.status,
+        who: t.assignee,
+        due: t.dueDate || undefined,
+        comments: (grouped[t.id] || []).filter((a) => a.kind === "comment")
+          .length,
+        tag: t.label,
+      }));
+      setTickets(rows);
+      setActivities(grouped);
+      setDataError("");
+    } catch (e) {
+      setDataError(e instanceof Error ? e.message : "Unable to load data");
+    } finally {
+      setSyncing(false);
+    }
+  };
   useEffect(() => {
+    void loadData();
     const keys = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -250,86 +320,79 @@ export default function Home() {
     const t = tickets.find((x) => x.id === id);
     if (t && t.status !== to) setPending({ id, from: t.status, to });
   };
-  const confirmMove = () => {
+  const confirmMove = async () => {
     if (!pending) return;
-    setTickets((x) =>
-      x.map((t) =>
-        t.id === pending.id
-          ? {
-              ...t,
-              status: pending.to,
-              comments: t.comments + (statusComment.trim() ? 1 : 0),
-            }
-          : t,
-      ),
-    );
-    setActivities((x) => ({
-      ...x,
-      [pending.id]: [
-        {
-          id: Date.now(),
-          kind: "status",
-          author: "AK",
-          text: statusComment.trim() || "Status updated",
-          from: pending.from,
-          to: pending.to,
-          time: "Just now",
-        },
-        ...(x[pending.id] || []),
-      ],
-    }));
-    if (selected?.id === pending.id)
-      setSelected({
-        ...selected,
-        status: pending.to,
-        comments: selected.comments + (statusComment.trim() ? 1 : 0),
+    setSyncing(true);
+    try {
+      const response = await fetch("/api/tickets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: pending.id,
+          status: pending.to,
+          comment: statusComment,
+        }),
       });
-    setPending(null);
-    setStatusComment("");
-    setDrag("");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Update failed");
+      setPending(null);
+      setStatusComment("");
+      setDrag("");
+      await loadData();
+      if (selected?.id === pending.id)
+        setSelected((s) => (s ? { ...s, status: pending.to } : s));
+      flash("Ticket status saved");
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Update failed");
+      setSyncing(false);
+    }
   };
-  const addComment = () => {
+  const addComment = async () => {
     if (!selected || !comment.trim()) return;
-    const text = comment.trim();
-    setActivities((x) => ({
-      ...x,
-      [selected.id]: [
-        {
-          id: Date.now(),
-          kind: "comment",
-          author: "AK",
-          text,
-          time: "Just now",
-        },
-        ...(x[selected.id] || []),
-      ],
-    }));
-    setTickets((x) =>
-      x.map((t) =>
-        t.id === selected.id ? { ...t, comments: t.comments + 1 } : t,
-      ),
-    );
-    setSelected({ ...selected, comments: selected.comments + 1 });
-    setComment("");
+    setSyncing(true);
+    try {
+      const response = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: selected.id, body: comment }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Comment failed");
+      setComment("");
+      await loadData();
+      setSelected((s) => (s ? { ...s, comments: s.comments + 1 } : s));
+      flash("Comment saved");
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Comment failed");
+      setSyncing(false);
+    }
   };
-  const create = () => {
+  const create = async () => {
     if (!title.trim()) return;
-    const n = Math.max(...tickets.map((t) => +t.id.split("-")[1])) + 1;
-    setTickets([
-      {
-        id: `PF-${n}`,
-        title: title.trim(),
-        type: "Task",
-        priority: "Medium",
-        status: "To Do",
-        who: "AK",
-        comments: 0,
-        tag: "New",
-      },
-      ...tickets,
-    ]);
-    setTitle("");
-    setModal(false);
+    setSyncing(true);
+    try {
+      const response = await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          type: newType,
+          priority: newPriority,
+          description: newDescription,
+          assignee: "AK",
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Create failed");
+      setTitle("");
+      setNewDescription("");
+      setModal(false);
+      await loadData();
+      flash(`${data.ticket.id} created`);
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Create failed");
+      setSyncing(false);
+    }
   };
   return (
     <main>
@@ -427,6 +490,17 @@ export default function Home() {
           </div>
         </header>
         <div className="content">
+          {dataError && (
+            <div className="data-banner error">
+              <span>Database connection failed: {dataError}</span>
+              <button onClick={loadData}>Retry</button>
+            </div>
+          )}
+          {syncing && (
+            <div className="sync-indicator">
+              <i /> Saving and syncing…
+            </div>
+          )}
           <div className="project">
             <div>
               <p>Projects　/　PrintFlow</p>
@@ -733,7 +807,10 @@ export default function Home() {
                 <div className="form-row">
                   <label>
                     Type
-                    <select>
+                    <select
+                      value={newType}
+                      onChange={(e) => setNewType(e.target.value)}
+                    >
                       <option>Task</option>
                       <option>Bug</option>
                       <option>Feature</option>
@@ -741,7 +818,10 @@ export default function Home() {
                   </label>
                   <label>
                     Priority
-                    <select>
+                    <select
+                      value={newPriority}
+                      onChange={(e) => setNewPriority(e.target.value)}
+                    >
                       <option>Medium</option>
                       <option>High</option>
                       <option>Urgent</option>
@@ -750,11 +830,19 @@ export default function Home() {
                 </div>
                 <label>
                   Description
-                  <textarea placeholder="Add context or acceptance criteria..." />
+                  <textarea
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Add context or acceptance criteria..."
+                  />
                 </label>
                 <div className="modal-actions">
                   <button onClick={() => setModal(false)}>Cancel</button>
-                  <button className="primary" onClick={create}>
+                  <button
+                    className="primary"
+                    disabled={syncing || title.trim().length < 3}
+                    onClick={create}
+                  >
                     Create ticket
                   </button>
                 </div>
@@ -807,7 +895,10 @@ export default function Home() {
                       />
                       <div>
                         <span>☺　📎　@</span>
-                        <button disabled={!comment.trim()} onClick={addComment}>
+                        <button
+                          disabled={syncing || !comment.trim()}
+                          onClick={addComment}
+                        >
                           Comment
                         </button>
                       </div>
@@ -827,7 +918,9 @@ export default function Home() {
                               <b>{people[item.author][0]}</b>
                               {item.kind === "status"
                                 ? " changed the status"
-                                : " commented"}
+                                : item.kind === "created"
+                                  ? " created this ticket"
+                                  : " commented"}
                             </p>
                             {item.kind === "status" && (
                               <p className="status-change">
@@ -836,7 +929,9 @@ export default function Home() {
                                 <span>{item.to}</span>
                               </p>
                             )}
-                            <p className="activity-text">{item.text}</p>
+                            {item.text && (
+                              <p className="activity-text">{item.text}</p>
+                            )}
                             <small>{item.time}　·　Reply</small>
                           </div>
                         </div>
@@ -882,7 +977,11 @@ export default function Home() {
             </label>
             <div className="modal-actions">
               <button onClick={() => setPending(null)}>Cancel</button>
-              <button className="primary" onClick={confirmMove}>
+              <button
+                className="primary"
+                disabled={syncing}
+                onClick={confirmMove}
+              >
                 Move ticket
               </button>
             </div>

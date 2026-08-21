@@ -1153,6 +1153,59 @@ article footer .avatar {
   font-weight: 700;
   animation: toastin 0.18s ease-out;
 }
+.data-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 8px;
+  padding: 11px 13px;
+  margin-bottom: 15px;
+}
+.data-banner.error {
+  background: #ffebe9;
+  color: #b93f45;
+  border: 1px solid #f6c9c6;
+}
+.data-banner button {
+  border: 0;
+  background: #b93f45;
+  color: #fff;
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-weight: 700;
+}
+.sync-indicator {
+  position: fixed;
+  top: 75px;
+  right: 20px;
+  z-index: 12;
+  background: #fff;
+  border: 1px solid #dedbd6;
+  border-radius: 7px;
+  padding: 8px 11px;
+  box-shadow: 0 7px 22px #221d3218;
+  color: #6c6872;
+  font-size: 10px;
+  font-weight: 700;
+}
+.sync-indicator i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6052d7;
+  margin-right: 6px;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 @keyframes slidein {
   from {
     transform: translateX(30px);

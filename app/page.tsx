@@ -2,6 +2,13 @@
 import { useEffect, useMemo, useState } from "react";
 type Status = "To Do" | "In Progress" | "In Review" | "Done";
 type P = "Low" | "Medium" | "High" | "Urgent";
+type Project = {
+  key: string;
+  name: string;
+  description: string;
+  color: string;
+  status: string;
+};
 type Ticket = {
   id: string;
   title: string;
@@ -128,6 +135,29 @@ const seed: Ticket[] = [
   },
 ];
 const cols: Status[] = ["To Do", "In Progress", "In Review", "Done"];
+const initialProjects: Project[] = [
+  {
+    key: "PF",
+    name: "PrintFlow",
+    description: "Order, billing and production management",
+    color: "#ed9276",
+    status: "active",
+  },
+  {
+    key: "HD",
+    name: "HelpDesk",
+    description: "Customer support and service requests",
+    color: "#62a4cb",
+    status: "active",
+  },
+  {
+    key: "WB",
+    name: "Website Build",
+    description: "Website design and development",
+    color: "#55a987",
+    status: "active",
+  },
+];
 const Avatar = ({ id }: { id: string }) => (
   <i className="avatar" style={{ background: people[id]?.[1] }}>
     {id}
@@ -177,6 +207,11 @@ export default function Home() {
     [newType, setNewType] = useState("Task"),
     [newPriority, setNewPriority] = useState("Medium"),
     [newDescription, setNewDescription] = useState(""),
+    [projects, setProjects] = useState<Project[]>(initialProjects),
+    [activeProject, setActiveProject] = useState<Project>(initialProjects[0]),
+    [projectName, setProjectName] = useState(""),
+    [projectKey, setProjectKey] = useState(""),
+    [projectDescription, setProjectDescription] = useState(""),
     [activities, setActivities] = useState(starterActivity),
     [comment, setComment] = useState(""),
     [pending, setPending] = useState<{
@@ -192,6 +227,7 @@ export default function Home() {
       | "settings"
       | "help"
       | "projects"
+      | "admin"
       | "actions"
     >(null),
     [notice, setNotice] = useState(""),
@@ -228,9 +264,22 @@ export default function Home() {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2200);
   };
-  const loadData = async () => {
+  const loadProjects = async () => {
     try {
-      const response = await fetch("/api/tickets", { cache: "no-store" });
+      const r = await fetch("/api/projects", { cache: "no-store" }),
+        d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      setProjects(d.projects);
+    } catch (e) {
+      setDataError(e instanceof Error ? e.message : "Unable to load projects");
+    }
+  };
+  const loadData = async (key = activeProject.key) => {
+    try {
+      const response = await fetch(
+        `/api/tickets?project=${encodeURIComponent(key)}`,
+        { cache: "no-store" },
+      );
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to load tickets");
       const grouped: { [key: string]: Activity[] } = {};
@@ -293,7 +342,8 @@ export default function Home() {
     }
   };
   useEffect(() => {
-    void loadData();
+    void loadProjects();
+    void loadData("PF");
     const keys = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -316,6 +366,39 @@ export default function Home() {
     window.addEventListener("keydown", keys);
     return () => window.removeEventListener("keydown", keys);
   }, []);
+  const switchProject = async (project: Project) => {
+    setActiveProject(project);
+    setSelected(null);
+    clearFilters();
+    setSyncing(true);
+    await loadData(project.key);
+    flash(`${project.name} board opened`);
+  };
+  const createProject = async () => {
+    setSyncing(true);
+    try {
+      const r = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: projectName,
+            key: projectKey,
+            description: projectDescription,
+          }),
+        }),
+        d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Unable to create project");
+      setProjectName("");
+      setProjectKey("");
+      setProjectDescription("");
+      setPanel(null);
+      await loadProjects();
+      await switchProject(d.project);
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Unable to create project");
+      setSyncing(false);
+    }
+  };
   const requestMove = (id: string, to: Status) => {
     const t = tickets.find((x) => x.id === id);
     if (t && t.status !== to) setPending({ id, from: t.status, to });
@@ -338,7 +421,7 @@ export default function Home() {
       setPending(null);
       setStatusComment("");
       setDrag("");
-      await loadData();
+      await loadData(activeProject.key);
       if (selected?.id === pending.id)
         setSelected((s) => (s ? { ...s, status: pending.to } : s));
       flash("Ticket status saved");
@@ -359,7 +442,7 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Comment failed");
       setComment("");
-      await loadData();
+      await loadData(activeProject.key);
       setSelected((s) => (s ? { ...s, comments: s.comments + 1 } : s));
       flash("Comment saved");
     } catch (e) {
@@ -380,6 +463,7 @@ export default function Home() {
           priority: newPriority,
           description: newDescription,
           assignee: "AK",
+          projectKey: activeProject.key,
         }),
       });
       const data = await response.json();
@@ -387,7 +471,7 @@ export default function Home() {
       setTitle("");
       setNewDescription("");
       setModal(false);
-      await loadData();
+      await loadData(activeProject.key);
       flash(`${data.ticket.id} created`);
     } catch (e) {
       flash(e instanceof Error ? e.message : "Create failed");
@@ -410,7 +494,7 @@ export default function Home() {
           <a
             onClick={() => {
               clearFilters();
-              flash("Showing all PrintFlow tickets");
+              flash(`Showing all ${activeProject.name} tickets`);
             }}
           >
             ⌂ <span>My projects</span>
@@ -431,40 +515,33 @@ export default function Home() {
           <small>
             Projects <button onClick={() => setPanel("projects")}>＋</button>
           </small>
-          <a
-            className="active"
-            onClick={() => flash("PrintFlow project selected")}
-          >
-            <b className="badge pf">PF</b>
-            <span>PrintFlow</span>
-          </a>
-          <a
-            onClick={() =>
-              flash("HelpDesk project is ready to open in the full version")
-            }
-          >
-            <b className="badge hd">HD</b>
-            <span>HelpDesk</span>
-          </a>
-          <a
-            onClick={() =>
-              flash(
-                "Website Build project is ready to open in the full version",
-              )
-            }
-          >
-            <b className="badge wb">WB</b>
-            <span>Website Build</span>
-          </a>
+          {projects.map((project) => (
+            <a
+              key={project.key}
+              className={activeProject.key === project.key ? "active" : ""}
+              onClick={() => switchProject(project)}
+            >
+              <b className="badge" style={{ background: project.color }}>
+                {project.key}
+              </b>
+              <span>{project.name}</span>
+            </a>
+          ))}
         </nav>
         <div className="aside-bottom">
           <a onClick={() => setView("Reports")}>▥ Reports</a>
+          <a onClick={() => setPanel("admin")}>♛ Admin Console</a>
           <a onClick={() => setPanel("settings")}>⚙ Settings</a>
           <div className="profile">
-            <Avatar id="AK" />
+            <button
+              className="profile-trigger"
+              onClick={() => setPanel("admin")}
+            >
+              <Avatar id="AK" />
+            </button>
             <span>
               <b>Ahmed Khan</b>
-              <small>Project manager</small>
+              <small>Super Admin</small>
             </span>
           </div>
         </div>
@@ -486,7 +563,12 @@ export default function Home() {
             <button onClick={() => setPanel("notifications")}>
               ♧<em>3</em>
             </button>
-            <Avatar id="AK" />
+            <button
+              className="profile-trigger"
+              onClick={() => setPanel("admin")}
+            >
+              <Avatar id="AK" />
+            </button>
           </div>
         </header>
         <div className="content">
@@ -503,9 +585,11 @@ export default function Home() {
           )}
           <div className="project">
             <div>
-              <p>Projects　/　PrintFlow</p>
-              <h1>PrintFlow</h1>
-              <small>Order, billing and production management</small>
+              <p>Projects　/　{activeProject.name}</p>
+              <h1>{activeProject.name}</h1>
+              <small>
+                {activeProject.description || "No project description"}
+              </small>
             </div>
             <div className="project-actions">
               <span className="stack">
@@ -709,7 +793,7 @@ export default function Home() {
               <div className="report-card">
                 <small>Total tickets</small>
                 <b>{tickets.length}</b>
-                <span>Across PrintFlow</span>
+                <span>Across {activeProject.name}</span>
               </div>
               <div className="report-card">
                 <small>Open tickets</small>
@@ -999,8 +1083,8 @@ export default function Home() {
                 <small>PROJECT ACCESS</small>
                 <h2>Invite people</h2>
                 <p>
-                  Add a teammate to PrintFlow. They will be able to view and
-                  update project tickets.
+                  Add a teammate to {activeProject.name}. They will be able to
+                  view and update project tickets.
                 </p>
                 <label>
                   Email address
@@ -1061,15 +1145,15 @@ export default function Home() {
                 <h2>Project settings</h2>
                 <label>
                   Project name
-                  <input defaultValue="PrintFlow" />
+                  <input defaultValue={activeProject.name} />
                 </label>
                 <label>
                   Project key
-                  <input defaultValue="PF" />
+                  <input defaultValue={activeProject.key} />
                 </label>
                 <label>
                   Description
-                  <textarea defaultValue="Order, billing and production management" />
+                  <textarea defaultValue={activeProject.description} />
                 </label>
                 <button
                   className="panel-primary"
@@ -1111,21 +1195,96 @@ export default function Home() {
                 <h2>Create project</h2>
                 <label>
                   Project name
-                  <input autoFocus placeholder="e.g. Mobile App" />
+                  <input
+                    autoFocus
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="e.g. Mobile App"
+                  />
                 </label>
                 <label>
                   Project key
-                  <input placeholder="e.g. MA" maxLength={5} />
+                  <input
+                    value={projectKey}
+                    onChange={(e) =>
+                      setProjectKey(e.target.value.toUpperCase())
+                    }
+                    placeholder="e.g. MA"
+                    maxLength={5}
+                  />
+                </label>
+                <label>
+                  Project description
+                  <textarea
+                    value={projectDescription}
+                    onChange={(e) => setProjectDescription(e.target.value)}
+                    placeholder="What is this project for?"
+                  />
                 </label>
                 <button
                   className="panel-primary"
-                  onClick={() => {
-                    setPanel(null);
-                    flash("New project draft created");
-                  }}
+                  disabled={
+                    syncing ||
+                    projectName.trim().length < 3 ||
+                    projectKey.trim().length < 2
+                  }
+                  onClick={createProject}
                 >
                   Create project
                 </button>
+              </>
+            )}
+            {panel === "admin" && (
+              <>
+                <small>AUTHENTICATED SESSION</small>
+                <h2>Super Admin Console</h2>
+                <div className="admin-user">
+                  <Avatar id="AK" />
+                  <span>
+                    <b>Ahmed Khan</b>
+                    <small>Super Admin · Signed in securely</small>
+                  </span>
+                </div>
+                <h3 className="panel-section">User management</h3>
+                <div className="member-row">
+                  <Avatar id="ZM" />
+                  <span>
+                    <b>Zara Malik</b>
+                    <small>Project Manager · PrintFlow</small>
+                  </span>
+                  <button onClick={() => flash("Zara's role editor opened")}>
+                    Edit
+                  </button>
+                </div>
+                <div className="member-row">
+                  <Avatar id="SR" />
+                  <span>
+                    <b>Saad Raza</b>
+                    <small>Member · 2 projects</small>
+                  </span>
+                  <button onClick={() => flash("Saad's role editor opened")}>
+                    Edit
+                  </button>
+                </div>
+                <div className="member-row">
+                  <Avatar id="HN" />
+                  <span>
+                    <b>Hira Noor</b>
+                    <small>Member · HelpDesk</small>
+                  </span>
+                  <button onClick={() => flash("Hira's role editor opened")}>
+                    Edit
+                  </button>
+                </div>
+                <button
+                  className="panel-primary"
+                  onClick={() => setPanel("invite")}
+                >
+                  ＋ Add user
+                </button>
+                <a className="signout" href="/signout-with-chatgpt?return_to=/">
+                  Sign out securely
+                </a>
               </>
             )}
             {panel === "actions" && (

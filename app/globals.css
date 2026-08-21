@@ -157,6 +157,60 @@ nav em {
   gap: 9px;
   align-items: center;
 }
+.profile-trigger {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+.admin-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  background: #f5f3ff;
+  border: 1px solid #ded9ff;
+  border-radius: 9px;
+  margin: 18px 0;
+}
+.admin-user > span,
+.member-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.admin-user small,
+.member-row small {
+  color: #999;
+}
+.panel-section {
+  font: 700 15px Georgia;
+  margin: 26px 0 8px;
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+.member-row > span {
+  flex: 1;
+}
+.member-row button {
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 5px;
+  padding: 5px 9px;
+  color: #655f6b;
+}
+.signout {
+  display: block;
+  text-align: center;
+  color: #c34b51;
+  margin-top: 22px;
+  text-decoration: none;
+  font-weight: 700;
+}
 .profile > span {
   display: flex;
   flex-direction: column;

@@ -1,5 +1,17 @@
 import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const projects = sqliteTable("projects", {
+  key: text("key").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  color: text("color").notNull().default("#6052d7"),
+  status: text("status").notNull().default("active"),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
 export const tickets = sqliteTable(
   "tickets",
   {

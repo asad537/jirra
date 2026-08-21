@@ -1,6 +1,6 @@
-import { and, desc, eq, max, sql } from "drizzle-orm";
+import { desc, eq, inArray, max, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { activities, tickets } from "../../../db/schema";
+import { activities, projects, tickets } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 const STATUSES = ["To Do", "In Progress", "In Review", "Done"] as const,
   PRIORITIES = ["Low", "Medium", "High", "Urgent"] as const,
@@ -98,12 +98,15 @@ async function actor() {
 }
 const valid = <T extends readonly string[]>(v: T, x: unknown): x is T[number] =>
   typeof x === "string" && v.includes(x as T[number]);
-export async function GET() {
+export async function GET(request: Request) {
   const a = await actor();
   if (!a)
     return Response.json({ error: "Authentication required" }, { status: 401 });
   try {
     const db = getDb();
+    const projectKey = (
+      new URL(request.url).searchParams.get("project") || "PF"
+    ).toUpperCase();
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(tickets);
@@ -118,31 +121,37 @@ export async function GET() {
         dueDate,
         label,
       ] of seed)
-        await db
-          .insert(tickets)
-          .values({
-            id: `PF-${number}`,
-            projectKey: "PF",
-            number,
-            title,
-            type,
-            priority,
-            status,
-            assignee,
-            dueDate,
-            label,
-            reporterId: "system",
-            reporterName: "TaskFlow",
-          });
+        await db.insert(tickets).values({
+          id: `PF-${number}`,
+          projectKey: "PF",
+          number,
+          title,
+          type,
+          priority,
+          status,
+          assignee,
+          dueDate,
+          label,
+          reporterId: "system",
+          reporterName: "TaskFlow",
+        });
     const ticketRows = await db
       .select()
       .from(tickets)
-      .where(eq(tickets.projectKey, "PF"))
+      .where(eq(tickets.projectKey, projectKey))
       .orderBy(desc(tickets.updatedAt), desc(tickets.number));
-    const activityRows = await db
-      .select()
-      .from(activities)
-      .orderBy(desc(activities.createdAt), desc(activities.id));
+    const activityRows = ticketRows.length
+      ? await db
+          .select()
+          .from(activities)
+          .where(
+            inArray(
+              activities.ticketId,
+              ticketRows.map((t) => t.id),
+            ),
+          )
+          .orderBy(desc(activities.createdAt), desc(activities.id))
+      : [];
     return Response.json(
       { tickets: ticketRows, activities: activityRows, user: a },
       { headers: { "Cache-Control": "no-store" } },
@@ -160,7 +169,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Authentication required" }, { status: 401 });
   try {
     const b = (await request.json()) as Record<string, unknown>,
-      title = typeof b.title === "string" ? b.title.trim() : "";
+      title = typeof b.title === "string" ? b.title.trim() : "",
+      projectKey =
+        typeof b.projectKey === "string" ? b.projectKey.toUpperCase() : "PF";
     if (title.length < 3 || title.length > 180)
       return Response.json(
         { error: "Title must be 3–180 characters" },
@@ -169,18 +180,25 @@ export async function POST(request: Request) {
     const type = valid(TYPES, b.type) ? b.type : "Task",
       priority = valid(PRIORITIES, b.priority) ? b.priority : "Medium",
       assignee = valid(ASSIGNEES, b.assignee) ? b.assignee : "AK",
-      db = getDb(),
-      [row] = await db
+      db = getDb();
+    const projectExists = await db
+      .select({ key: projects.key })
+      .from(projects)
+      .where(eq(projects.key, projectKey))
+      .limit(1);
+    if (!projectExists.length)
+      return Response.json({ error: "Project not found" }, { status: 404 });
+    const [row] = await db
         .select({ number: max(tickets.number) })
         .from(tickets)
-        .where(eq(tickets.projectKey, "PF")),
+        .where(eq(tickets.projectKey, projectKey)),
       number = (row.number || 0) + 1,
-      id = `PF-${number}`;
+      id = `${projectKey}-${number}`;
     const [ticket] = await db
       .insert(tickets)
       .values({
         id,
-        projectKey: "PF",
+        projectKey,
         number,
         title,
         description:
@@ -222,7 +240,7 @@ export async function PATCH(request: Request) {
       [current] = await db
         .select()
         .from(tickets)
-        .where(and(eq(tickets.id, id), eq(tickets.projectKey, "PF")))
+        .where(eq(tickets.id, id))
         .limit(1);
     if (!current)
       return Response.json({ error: "Ticket not found" }, { status: 404 });

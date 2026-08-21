@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 type Status = "To Do" | "In Progress" | "In Review" | "Done";
 type P = "Low" | "Medium" | "High" | "Urgent";
 type Ticket = {
@@ -169,7 +169,7 @@ export default function Home() {
     [assigneeFilter, setAssigneeFilter] = useState("All assignees"),
     [typeFilter, setTypeFilter] = useState("All types"),
     [priorityFilter, setPriorityFilter] = useState("All priorities"),
-    [view, setView] = useState<"Board" | "List">("Board"),
+    [view, setView] = useState<"Board" | "List" | "Reports">("Board"),
     [modal, setModal] = useState(false),
     [selected, setSelected] = useState<Ticket | null>(null),
     [drag, setDrag] = useState(""),
@@ -181,7 +181,17 @@ export default function Home() {
       from: Status;
       to: Status;
     } | null>(null),
-    [statusComment, setStatusComment] = useState("");
+    [statusComment, setStatusComment] = useState(""),
+    [panel, setPanel] = useState<
+      | null
+      | "invite"
+      | "notifications"
+      | "settings"
+      | "help"
+      | "projects"
+      | "actions"
+    >(null),
+    [notice, setNotice] = useState("");
   const shown = useMemo(
     () =>
       tickets.filter(
@@ -209,6 +219,33 @@ export default function Home() {
     typeFilter !== "All types",
     priorityFilter !== "All priorities",
   ].filter(Boolean).length;
+  const flash = (message: string) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(""), 2200);
+  };
+  useEffect(() => {
+    const keys = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>(".search input")?.focus();
+      }
+      if (
+        e.key.toLowerCase() === "c" &&
+        !["INPUT", "TEXTAREA", "SELECT"].includes(
+          (e.target as HTMLElement).tagName,
+        )
+      )
+        setModal(true);
+      if (e.key === "Escape") {
+        setPanel(null);
+        setSelected(null);
+        setModal(false);
+        setPending(null);
+      }
+    };
+    window.addEventListener("keydown", keys);
+    return () => window.removeEventListener("keydown", keys);
+  }, []);
   const requestMove = (id: string, to: Status) => {
     const t = tickets.find((x) => x.id === id);
     if (t && t.status !== to) setPending({ id, from: t.status, to });
@@ -307,36 +344,59 @@ export default function Home() {
         </button>
         <nav>
           <small>Workspace</small>
-          <a>
+          <a
+            onClick={() => {
+              clearFilters();
+              flash("Showing all PrintFlow tickets");
+            }}
+          >
             ⌂ <span>My projects</span>
           </a>
-          <a>
+          <a
+            onClick={() => {
+              setAssigneeFilter("AK");
+              flash("Showing tickets assigned to you");
+            }}
+          >
             ✓ <span>My tickets</span>
             <em>8</em>
           </a>
-          <a>
+          <a onClick={() => setPanel("notifications")}>
             ♧ <span>Notifications</span>
             <em className="red">3</em>
           </a>
           <small>
-            Projects <button>＋</button>
+            Projects <button onClick={() => setPanel("projects")}>＋</button>
           </small>
-          <a className="active">
+          <a
+            className="active"
+            onClick={() => flash("PrintFlow project selected")}
+          >
             <b className="badge pf">PF</b>
             <span>PrintFlow</span>
           </a>
-          <a>
+          <a
+            onClick={() =>
+              flash("HelpDesk project is ready to open in the full version")
+            }
+          >
             <b className="badge hd">HD</b>
             <span>HelpDesk</span>
           </a>
-          <a>
+          <a
+            onClick={() =>
+              flash(
+                "Website Build project is ready to open in the full version",
+              )
+            }
+          >
             <b className="badge wb">WB</b>
             <span>Website Build</span>
           </a>
         </nav>
         <div className="aside-bottom">
-          <a>▥ Reports</a>
-          <a>⚙ Settings</a>
+          <a onClick={() => setView("Reports")}>▥ Reports</a>
+          <a onClick={() => setPanel("settings")}>⚙ Settings</a>
           <div className="profile">
             <Avatar id="AK" />
             <span>
@@ -359,8 +419,8 @@ export default function Home() {
             <kbd>⌘ K</kbd>
           </div>
           <div className="account">
-            <button>?</button>
-            <button>
+            <button onClick={() => setPanel("help")}>?</button>
+            <button onClick={() => setPanel("notifications")}>
               ♧<em>3</em>
             </button>
             <Avatar id="AK" />
@@ -379,8 +439,8 @@ export default function Home() {
                   <Avatar id={x} key={x} />
                 ))}
               </span>
-              <button>♙ Invite</button>
-              <button>•••</button>
+              <button onClick={() => setPanel("invite")}>♙ Invite</button>
+              <button onClick={() => setPanel("actions")}>•••</button>
             </div>
           </div>
           <div className="tabs">
@@ -396,9 +456,16 @@ export default function Home() {
             >
               ☷ List
             </button>
-            <button>◫ Reports</button>
+            <button
+              className={view === "Reports" ? "on" : ""}
+              onClick={() => setView("Reports")}
+            >
+              ◫ Reports
+            </button>
             <span />
-            <button>⚙ Project settings</button>
+            <button onClick={() => setPanel("settings")}>
+              ⚙ Project settings
+            </button>
           </div>
           <div className="tools">
             <div>
@@ -454,7 +521,14 @@ export default function Home() {
                 × Clear {activeFilters ? `(${activeFilters})` : ""}
               </button>
             </div>
-            <button className="mini-stack">
+            <button
+              className="mini-stack"
+              onClick={() =>
+                setAssigneeFilter(
+                  assigneeFilter === "All assignees" ? "AK" : "All assignees",
+                )
+              }
+            >
               <Avatar id="AK" />
               <Avatar id="ZM" />
               <Avatar id="SR" />
@@ -473,7 +547,7 @@ export default function Home() {
                     <i className={`dot d${i}`} />
                     <b>{col}</b>
                     <em>{shown.filter((t) => t.status === col).length}</em>
-                    <button>•••　＋</button>
+                    <button onClick={() => setModal(true)}>•••　＋</button>
                   </div>
                   <div className="cards">
                     {shown
@@ -494,7 +568,15 @@ export default function Home() {
                                   : "■"}{" "}
                               {t.type}
                             </span>
-                            <button>•••</button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelected(t);
+                                setPanel("actions");
+                              }}
+                            >
+                              •••
+                            </button>
                           </div>
                           <h3>{t.title}</h3>
                           <div className="tags">
@@ -524,7 +606,7 @@ export default function Home() {
                 </section>
               ))}
             </div>
-          ) : (
+          ) : view === "List" ? (
             <div className="list">
               <div className="row head">
                 <span>Ticket</span>
@@ -547,6 +629,68 @@ export default function Home() {
                   <span>{people[t.who][0]}</span>
                 </button>
               ))}
+            </div>
+          ) : (
+            <div className="reports-view">
+              <div className="report-card">
+                <small>Total tickets</small>
+                <b>{tickets.length}</b>
+                <span>Across PrintFlow</span>
+              </div>
+              <div className="report-card">
+                <small>Open tickets</small>
+                <b>{tickets.filter((t) => t.status !== "Done").length}</b>
+                <span>Needs attention</span>
+              </div>
+              <div className="report-card">
+                <small>Completed</small>
+                <b>{tickets.filter((t) => t.status === "Done").length}</b>
+                <span>This project</span>
+              </div>
+              <div className="report-card urgent-card">
+                <small>Urgent</small>
+                <b>{tickets.filter((t) => t.priority === "Urgent").length}</b>
+                <span>Resolve today</span>
+              </div>
+              <section className="status-report">
+                <h3>Tickets by status</h3>
+                {cols.map((c) => (
+                  <div key={c}>
+                    <span>{c}</span>
+                    <i>
+                      <b
+                        style={{
+                          width: `${Math.max(8, (tickets.filter((t) => t.status === c).length / tickets.length) * 100)}%`,
+                        }}
+                      />
+                    </i>
+                    <strong>
+                      {tickets.filter((t) => t.status === c).length}
+                    </strong>
+                  </div>
+                ))}
+              </section>
+              <section className="status-report">
+                <h3>Workload by assignee</h3>
+                {Object.entries(people).map(([id, p]) => (
+                  <div key={id}>
+                    <span>
+                      <Avatar id={id} />
+                      {p[0]}
+                    </span>
+                    <i>
+                      <b
+                        style={{
+                          width: `${Math.max(8, (tickets.filter((t) => t.who === id).length / tickets.length) * 100)}%`,
+                        }}
+                      />
+                    </i>
+                    <strong>
+                      {tickets.filter((t) => t.who === id).length}
+                    </strong>
+                  </div>
+                ))}
+              </section>
             </div>
           )}
         </div>
@@ -745,6 +889,193 @@ export default function Home() {
           </div>
         </div>
       )}
+      {panel && (
+        <div className="panel-overlay" onMouseDown={() => setPanel(null)}>
+          <div className="side-panel" onMouseDown={(e) => e.stopPropagation()}>
+            <button className="close" onClick={() => setPanel(null)}>
+              ×
+            </button>
+            {panel === "invite" && (
+              <>
+                <small>PROJECT ACCESS</small>
+                <h2>Invite people</h2>
+                <p>
+                  Add a teammate to PrintFlow. They will be able to view and
+                  update project tickets.
+                </p>
+                <label>
+                  Email address
+                  <input autoFocus placeholder="name@company.com" />
+                </label>
+                <label>
+                  Project role
+                  <select>
+                    <option>Member</option>
+                    <option>Project manager</option>
+                    <option>Viewer</option>
+                  </select>
+                </label>
+                <button
+                  className="panel-primary"
+                  onClick={() => {
+                    setPanel(null);
+                    flash("Invitation prepared successfully");
+                  }}
+                >
+                  Send invitation
+                </button>
+              </>
+            )}
+            {panel === "notifications" && (
+              <>
+                <small>INBOX</small>
+                <h2>Notifications</h2>
+                <div className="notification">
+                  <b>PF-124 assigned to you</b>
+                  <span>Invoice PDF alignment breaks on mobile</span>
+                  <small>12 minutes ago</small>
+                </div>
+                <div className="notification">
+                  <b>Hira mentioned you</b>
+                  <span>Payment webhook is ready for review.</span>
+                  <small>1 hour ago</small>
+                </div>
+                <div className="notification">
+                  <b>PF-109 moved to review</b>
+                  <span>Saad changed the ticket status.</span>
+                  <small>Yesterday</small>
+                </div>
+                <button
+                  className="panel-primary"
+                  onClick={() => {
+                    setPanel(null);
+                    flash("All notifications marked as read");
+                  }}
+                >
+                  Mark all as read
+                </button>
+              </>
+            )}
+            {panel === "settings" && (
+              <>
+                <small>PRINTFLOW</small>
+                <h2>Project settings</h2>
+                <label>
+                  Project name
+                  <input defaultValue="PrintFlow" />
+                </label>
+                <label>
+                  Project key
+                  <input defaultValue="PF" />
+                </label>
+                <label>
+                  Description
+                  <textarea defaultValue="Order, billing and production management" />
+                </label>
+                <button
+                  className="panel-primary"
+                  onClick={() => {
+                    setPanel(null);
+                    flash("Project settings saved");
+                  }}
+                >
+                  Save changes
+                </button>
+              </>
+            )}
+            {panel === "help" && (
+              <>
+                <small>HELP CENTER</small>
+                <h2>How TaskFlow works</h2>
+                <p>
+                  Open any card to view comments and activity. Drag a card
+                  between columns to change status. Use the filters to narrow
+                  tickets.
+                </p>
+                <div className="shortcut">
+                  <b>⌘ K</b>
+                  <span>Focus search</span>
+                </div>
+                <div className="shortcut">
+                  <b>C</b>
+                  <span>Create ticket</span>
+                </div>
+                <div className="shortcut">
+                  <b>Esc</b>
+                  <span>Close panels</span>
+                </div>
+              </>
+            )}
+            {panel === "projects" && (
+              <>
+                <small>NEW WORKSPACE</small>
+                <h2>Create project</h2>
+                <label>
+                  Project name
+                  <input autoFocus placeholder="e.g. Mobile App" />
+                </label>
+                <label>
+                  Project key
+                  <input placeholder="e.g. MA" maxLength={5} />
+                </label>
+                <button
+                  className="panel-primary"
+                  onClick={() => {
+                    setPanel(null);
+                    flash("New project draft created");
+                  }}
+                >
+                  Create project
+                </button>
+              </>
+            )}
+            {panel === "actions" && (
+              <>
+                <small>{selected?.id || "PRINTFLOW"}</small>
+                <h2>More actions</h2>
+                <button
+                  className="action-item"
+                  onClick={() => {
+                    setPanel(null);
+                    selected && setSelected(selected);
+                  }}
+                >
+                  ✎ Edit ticket
+                </button>
+                <button
+                  className="action-item"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(selected?.id || "PrintFlow");
+                    setPanel(null);
+                    flash("Link copied");
+                  }}
+                >
+                  ↗ Copy link
+                </button>
+                <button
+                  className="action-item"
+                  onClick={() => {
+                    setPanel(null);
+                    flash("Ticket added to your watch list");
+                  }}
+                >
+                  ◎ Watch ticket
+                </button>
+                <button
+                  className="action-item danger"
+                  onClick={() => {
+                    setPanel(null);
+                    flash("Delete is restricted to project managers");
+                  }}
+                >
+                  ♲ Move to trash
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {notice && <div className="toast">✓ {notice}</div>}
     </main>
   );
 }

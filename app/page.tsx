@@ -1,25 +1,649 @@
 "use client";
-import {useMemo,useState} from "react";
-type Status="To Do"|"In Progress"|"In Review"|"Done"; type P="Low"|"Medium"|"High"|"Urgent";
-type Ticket={id:string;title:string;type:string;priority:P;status:Status;who:string;due?:string;comments:number;tag:string};
-const people:{[k:string]:[string,string]}={AK:["Ahmed Khan","#ed9276"],ZM:["Zara Malik","#8576df"],SR:["Saad Raza","#4fa68c"],HN:["Hira Noor","#db6586"]};
-const seed:Ticket[]=[
-{id:"PF-124",title:"Invoice PDF alignment breaks on mobile",type:"Bug",priority:"Urgent",status:"To Do",who:"AK",due:"Today",comments:5,tag:"Mobile"},
-{id:"PF-118",title:"Add bulk print option to orders",type:"Feature",priority:"High",status:"To Do",who:"ZM",due:"Aug 24",comments:2,tag:"Orders"},
-{id:"PF-121",title:"Improve customer search speed",type:"Improvement",priority:"Medium",status:"To Do",who:"SR",due:"Aug 28",comments:1,tag:"Performance"},
-{id:"PF-119",title:"Payment status not syncing",type:"Bug",priority:"Urgent",status:"In Progress",who:"HN",due:"Today",comments:8,tag:"Payments"},
-{id:"PF-116",title:"Redesign order detail header",type:"Task",priority:"High",status:"In Progress",who:"AK",due:"Aug 23",comments:3,tag:"UI"},
-{id:"PF-112",title:"Add CSV import validation",type:"Feature",priority:"Medium",status:"In Review",who:"ZM",due:"Aug 25",comments:4,tag:"Import"},
-{id:"PF-109",title:"Update product tax calculations",type:"Bug",priority:"High",status:"In Review",who:"SR",due:"Aug 22",comments:6,tag:"Billing"},
-{id:"PF-104",title:"Add keyboard shortcuts",type:"Improvement",priority:"Low",status:"Done",who:"HN",comments:2,tag:"UX"},
-{id:"PF-101",title:"Migrate customer notes",type:"Task",priority:"Medium",status:"Done",who:"AK",comments:1,tag:"Data"}];
-const cols:Status[]=["To Do","In Progress","In Review","Done"];
-const Avatar=({id}:{id:string})=><i className="avatar" style={{background:people[id]?.[1]}}>{id}</i>;
-export default function Home(){const[tickets,setTickets]=useState(seed),[query,setQuery]=useState(""),[filter,setFilter]=useState("All tickets"),[view,setView]=useState<"Board"|"List">("Board"),[modal,setModal]=useState(false),[selected,setSelected]=useState<Ticket|null>(null),[drag,setDrag]=useState(""),[title,setTitle]=useState("");
-const shown=useMemo(()=>tickets.filter(t=>(`${t.id} ${t.title} ${t.tag}`.toLowerCase().includes(query.toLowerCase()))&&(filter==="All tickets"||t.priority===filter)),[tickets,query,filter]);
-const move=(id:string,status:Status)=>setTickets(x=>x.map(t=>t.id===id?{...t,status}:t)); const create=()=>{if(!title.trim())return;const n=Math.max(...tickets.map(t=>+t.id.split("-")[1]))+1;setTickets([{id:`PF-${n}`,title:title.trim(),type:"Task",priority:"Medium",status:"To Do",who:"AK",comments:0,tag:"New"},...tickets]);setTitle("");setModal(false)};
-return <main><aside><div className="brand"><b>T</b><strong>TaskFlow</strong></div><button className="create" onClick={()=>setModal(true)}>＋ <span>New ticket</span><kbd>C</kbd></button><nav><small>Workspace</small><a>⌂ <span>My projects</span></a><a>✓ <span>My tickets</span><em>8</em></a><a>♧ <span>Notifications</span><em className="red">3</em></a><small>Projects <button>＋</button></small><a className="active"><b className="badge pf">PF</b><span>PrintFlow</span></a><a><b className="badge hd">HD</b><span>HelpDesk</span></a><a><b className="badge wb">WB</b><span>Website Build</span></a></nav><div className="aside-bottom"><a>▥ Reports</a><a>⚙ Settings</a><div className="profile"><Avatar id="AK"/><span><b>Ahmed Khan</b><small>Project manager</small></span></div></div></aside>
-<section className="workspace"><header><div className="search">⌕ <input placeholder="Search tickets..." aria-label="Search" value={query} onChange={e=>setQuery(e.target.value)}/><kbd>⌘ K</kbd></div><div className="account"><button>?</button><button>♧<em>3</em></button><Avatar id="AK"/></div></header><div className="content"><div className="project"><div><p>Projects　/　PrintFlow</p><h1>PrintFlow</h1><small>Order, billing and production management</small></div><div className="project-actions"><span className="stack">{Object.keys(people).map(x=><Avatar id={x} key={x}/>)}</span><button>♙ Invite</button><button>•••</button></div></div>
-<div className="tabs"><button className={view==="Board"?"on":""} onClick={()=>setView("Board")}>▦ Board</button><button className={view==="List"?"on":""} onClick={()=>setView("List")}>☷ List</button><button>◫ Reports</button><span/><button>⚙ Project settings</button></div><div className="tools"><div><select value={filter} onChange={e=>setFilter(e.target.value)}><option>All tickets</option>{["Urgent","High","Medium","Low"].map(x=><option key={x}>{x}</option>)}</select><button>♙ Assignee⌄</button><button>◇ Type⌄</button><button>⚑ Priority⌄</button><button>＋ More</button></div><button className="mini-stack"><Avatar id="AK"/><Avatar id="ZM"/><Avatar id="SR"/></button></div>
-{view==="Board"?<div className="board">{cols.map((col,i)=><section className="column" key={col} onDragOver={e=>e.preventDefault()} onDrop={()=>drag&&move(drag,col)}><div className="col-head"><i className={`dot d${i}`}/><b>{col}</b><em>{shown.filter(t=>t.status===col).length}</em><button>•••　＋</button></div><div className="cards">{shown.filter(t=>t.status===col).map(t=><article draggable onDragStart={()=>setDrag(t.id)} onClick={()=>setSelected(t)} key={t.id}><div className="meta"><span className={t.type.toLowerCase()}>{t.type==="Bug"?"◆":t.type==="Feature"?"⬡":"■"} {t.type}</span><button>•••</button></div><h3>{t.title}</h3><div className="tags"><b className={t.priority.toLowerCase()}>⚑ {t.priority}</b><b>{t.tag}</b></div><footer><strong>{t.id}</strong>{t.due&&<span className={t.due==="Today"?"today":""}>◷ {t.due}</span>}<span>▱ {t.comments}</span><Avatar id={t.who}/></footer></article>)}<button className="add" onClick={()=>setModal(true)}>＋ Add ticket</button></div></section>)}</div>:<div className="list"><div className="row head"><span>Ticket</span><span>Status</span><span>Priority</span><span>Assignee</span></div>{shown.map(t=><button className="row" key={t.id} onClick={()=>setSelected(t)}><span><b>{t.id}</b>{t.title}</span><span>{t.status}</span><span className={t.priority.toLowerCase()}>{t.priority}</span><span>{people[t.who][0]}</span></button>)}</div>}</div></section>
-{(modal||selected)&&<div className="overlay" onMouseDown={()=>{setModal(false);setSelected(null)}}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="close" onClick={()=>{setModal(false);setSelected(null)}}>×</button>{modal?<><small>PRINTFLOW / NEW TICKET</small><h2>Create a ticket</h2><label>Title<input autoFocus value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>e.key==="Enter"&&create()} placeholder="What needs to be done?"/></label><div className="form-row"><label>Type<select><option>Task</option><option>Bug</option><option>Feature</option></select></label><label>Priority<select><option>Medium</option><option>High</option><option>Urgent</option></select></label></div><label>Description<textarea placeholder="Add context or acceptance criteria..."/></label><div className="modal-actions"><button onClick={()=>setModal(false)}>Cancel</button><button className="primary" onClick={create}>Create ticket</button></div></>:selected&&<><small>{selected.id} · {selected.type}</small><h2>{selected.title}</h2><div className="details"><label>Status<select value={selected.status} onChange={e=>{const s=e.target.value as Status;move(selected.id,s);setSelected({...selected,status:s})}}>{cols.map(x=><option key={x}>{x}</option>)}</select></label><label>Priority<b className={selected.priority.toLowerCase()}>⚑ {selected.priority}</b></label><label>Assignee<span><Avatar id={selected.who}/>{people[selected.who][0]}</span></label><label>Due date<b>{selected.due||"No due date"}</b></label></div><hr/><h4>Activity</h4><p className="activity"><Avatar id="AK"/><span><b>Ahmed Khan</b> moved this ticket to <b>{selected.status}</b><small>Just now</small></span></p></>}</div></div>}</main>}
+import { useMemo, useState } from "react";
+type Status = "To Do" | "In Progress" | "In Review" | "Done";
+type P = "Low" | "Medium" | "High" | "Urgent";
+type Ticket = {
+  id: string;
+  title: string;
+  type: string;
+  priority: P;
+  status: Status;
+  who: string;
+  due?: string;
+  comments: number;
+  tag: string;
+};
+type Activity = {
+  id: number;
+  kind: "comment" | "status";
+  author: string;
+  text: string;
+  time: string;
+  from?: Status;
+  to?: Status;
+};
+const people: { [k: string]: [string, string] } = {
+  AK: ["Ahmed Khan", "#ed9276"],
+  ZM: ["Zara Malik", "#8576df"],
+  SR: ["Saad Raza", "#4fa68c"],
+  HN: ["Hira Noor", "#db6586"],
+};
+const seed: Ticket[] = [
+  {
+    id: "PF-124",
+    title: "Invoice PDF alignment breaks on mobile",
+    type: "Bug",
+    priority: "Urgent",
+    status: "To Do",
+    who: "AK",
+    due: "Today",
+    comments: 5,
+    tag: "Mobile",
+  },
+  {
+    id: "PF-118",
+    title: "Add bulk print option to orders",
+    type: "Feature",
+    priority: "High",
+    status: "To Do",
+    who: "ZM",
+    due: "Aug 24",
+    comments: 2,
+    tag: "Orders",
+  },
+  {
+    id: "PF-121",
+    title: "Improve customer search speed",
+    type: "Improvement",
+    priority: "Medium",
+    status: "To Do",
+    who: "SR",
+    due: "Aug 28",
+    comments: 1,
+    tag: "Performance",
+  },
+  {
+    id: "PF-119",
+    title: "Payment status not syncing",
+    type: "Bug",
+    priority: "Urgent",
+    status: "In Progress",
+    who: "HN",
+    due: "Today",
+    comments: 8,
+    tag: "Payments",
+  },
+  {
+    id: "PF-116",
+    title: "Redesign order detail header",
+    type: "Task",
+    priority: "High",
+    status: "In Progress",
+    who: "AK",
+    due: "Aug 23",
+    comments: 3,
+    tag: "UI",
+  },
+  {
+    id: "PF-112",
+    title: "Add CSV import validation",
+    type: "Feature",
+    priority: "Medium",
+    status: "In Review",
+    who: "ZM",
+    due: "Aug 25",
+    comments: 4,
+    tag: "Import",
+  },
+  {
+    id: "PF-109",
+    title: "Update product tax calculations",
+    type: "Bug",
+    priority: "High",
+    status: "In Review",
+    who: "SR",
+    due: "Aug 22",
+    comments: 6,
+    tag: "Billing",
+  },
+  {
+    id: "PF-104",
+    title: "Add keyboard shortcuts",
+    type: "Improvement",
+    priority: "Low",
+    status: "Done",
+    who: "HN",
+    comments: 2,
+    tag: "UX",
+  },
+  {
+    id: "PF-101",
+    title: "Migrate customer notes",
+    type: "Task",
+    priority: "Medium",
+    status: "Done",
+    who: "AK",
+    comments: 1,
+    tag: "Data",
+  },
+];
+const cols: Status[] = ["To Do", "In Progress", "In Review", "Done"];
+const Avatar = ({ id }: { id: string }) => (
+  <i className="avatar" style={{ background: people[id]?.[1] }}>
+    {id}
+  </i>
+);
+const starterActivity: { [key: string]: Activity[] } = {
+  "PF-124": [
+    {
+      id: 1,
+      kind: "comment",
+      author: "ZM",
+      text: "Issue reproduced on iPhone 15. PDF preview looks fine, exported file shifts the totals.",
+      time: "35 minutes ago",
+    },
+    {
+      id: 2,
+      kind: "status",
+      author: "AK",
+      text: "Moved this ticket",
+      from: "In Progress",
+      to: "To Do",
+      time: "2 hours ago",
+    },
+  ],
+  "PF-119": [
+    {
+      id: 3,
+      kind: "comment",
+      author: "HN",
+      text: "Webhook retry is now running in staging. Monitoring the next payment batch.",
+      time: "1 hour ago",
+    },
+  ],
+};
+export default function Home() {
+  const [tickets, setTickets] = useState(seed),
+    [query, setQuery] = useState(""),
+    [filter, setFilter] = useState("All tickets"),
+    [view, setView] = useState<"Board" | "List">("Board"),
+    [modal, setModal] = useState(false),
+    [selected, setSelected] = useState<Ticket | null>(null),
+    [drag, setDrag] = useState(""),
+    [title, setTitle] = useState(""),
+    [activities, setActivities] = useState(starterActivity),
+    [comment, setComment] = useState(""),
+    [pending, setPending] = useState<{
+      id: string;
+      from: Status;
+      to: Status;
+    } | null>(null),
+    [statusComment, setStatusComment] = useState("");
+  const shown = useMemo(
+    () =>
+      tickets.filter(
+        (t) =>
+          `${t.id} ${t.title} ${t.tag}`
+            .toLowerCase()
+            .includes(query.toLowerCase()) &&
+          (filter === "All tickets" || t.priority === filter),
+      ),
+    [tickets, query, filter],
+  );
+  const requestMove = (id: string, to: Status) => {
+    const t = tickets.find((x) => x.id === id);
+    if (t && t.status !== to) setPending({ id, from: t.status, to });
+  };
+  const confirmMove = () => {
+    if (!pending) return;
+    setTickets((x) =>
+      x.map((t) =>
+        t.id === pending.id
+          ? {
+              ...t,
+              status: pending.to,
+              comments: t.comments + (statusComment.trim() ? 1 : 0),
+            }
+          : t,
+      ),
+    );
+    setActivities((x) => ({
+      ...x,
+      [pending.id]: [
+        {
+          id: Date.now(),
+          kind: "status",
+          author: "AK",
+          text: statusComment.trim() || "Status updated",
+          from: pending.from,
+          to: pending.to,
+          time: "Just now",
+        },
+        ...(x[pending.id] || []),
+      ],
+    }));
+    if (selected?.id === pending.id)
+      setSelected({
+        ...selected,
+        status: pending.to,
+        comments: selected.comments + (statusComment.trim() ? 1 : 0),
+      });
+    setPending(null);
+    setStatusComment("");
+    setDrag("");
+  };
+  const addComment = () => {
+    if (!selected || !comment.trim()) return;
+    const text = comment.trim();
+    setActivities((x) => ({
+      ...x,
+      [selected.id]: [
+        {
+          id: Date.now(),
+          kind: "comment",
+          author: "AK",
+          text,
+          time: "Just now",
+        },
+        ...(x[selected.id] || []),
+      ],
+    }));
+    setTickets((x) =>
+      x.map((t) =>
+        t.id === selected.id ? { ...t, comments: t.comments + 1 } : t,
+      ),
+    );
+    setSelected({ ...selected, comments: selected.comments + 1 });
+    setComment("");
+  };
+  const create = () => {
+    if (!title.trim()) return;
+    const n = Math.max(...tickets.map((t) => +t.id.split("-")[1])) + 1;
+    setTickets([
+      {
+        id: `PF-${n}`,
+        title: title.trim(),
+        type: "Task",
+        priority: "Medium",
+        status: "To Do",
+        who: "AK",
+        comments: 0,
+        tag: "New",
+      },
+      ...tickets,
+    ]);
+    setTitle("");
+    setModal(false);
+  };
+  return (
+    <main>
+      <aside>
+        <div className="brand">
+          <b>T</b>
+          <strong>TaskFlow</strong>
+        </div>
+        <button className="create" onClick={() => setModal(true)}>
+          ＋ <span>New ticket</span>
+          <kbd>C</kbd>
+        </button>
+        <nav>
+          <small>Workspace</small>
+          <a>
+            ⌂ <span>My projects</span>
+          </a>
+          <a>
+            ✓ <span>My tickets</span>
+            <em>8</em>
+          </a>
+          <a>
+            ♧ <span>Notifications</span>
+            <em className="red">3</em>
+          </a>
+          <small>
+            Projects <button>＋</button>
+          </small>
+          <a className="active">
+            <b className="badge pf">PF</b>
+            <span>PrintFlow</span>
+          </a>
+          <a>
+            <b className="badge hd">HD</b>
+            <span>HelpDesk</span>
+          </a>
+          <a>
+            <b className="badge wb">WB</b>
+            <span>Website Build</span>
+          </a>
+        </nav>
+        <div className="aside-bottom">
+          <a>▥ Reports</a>
+          <a>⚙ Settings</a>
+          <div className="profile">
+            <Avatar id="AK" />
+            <span>
+              <b>Ahmed Khan</b>
+              <small>Project manager</small>
+            </span>
+          </div>
+        </div>
+      </aside>
+      <section className="workspace">
+        <header>
+          <div className="search">
+            ⌕{" "}
+            <input
+              placeholder="Search tickets..."
+              aria-label="Search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <kbd>⌘ K</kbd>
+          </div>
+          <div className="account">
+            <button>?</button>
+            <button>
+              ♧<em>3</em>
+            </button>
+            <Avatar id="AK" />
+          </div>
+        </header>
+        <div className="content">
+          <div className="project">
+            <div>
+              <p>Projects　/　PrintFlow</p>
+              <h1>PrintFlow</h1>
+              <small>Order, billing and production management</small>
+            </div>
+            <div className="project-actions">
+              <span className="stack">
+                {Object.keys(people).map((x) => (
+                  <Avatar id={x} key={x} />
+                ))}
+              </span>
+              <button>♙ Invite</button>
+              <button>•••</button>
+            </div>
+          </div>
+          <div className="tabs">
+            <button
+              className={view === "Board" ? "on" : ""}
+              onClick={() => setView("Board")}
+            >
+              ▦ Board
+            </button>
+            <button
+              className={view === "List" ? "on" : ""}
+              onClick={() => setView("List")}
+            >
+              ☷ List
+            </button>
+            <button>◫ Reports</button>
+            <span />
+            <button>⚙ Project settings</button>
+          </div>
+          <div className="tools">
+            <div>
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option>All tickets</option>
+                {["Urgent", "High", "Medium", "Low"].map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+              <button>♙ Assignee⌄</button>
+              <button>◇ Type⌄</button>
+              <button>⚑ Priority⌄</button>
+              <button>＋ More</button>
+            </div>
+            <button className="mini-stack">
+              <Avatar id="AK" />
+              <Avatar id="ZM" />
+              <Avatar id="SR" />
+            </button>
+          </div>
+          {view === "Board" ? (
+            <div className="board">
+              {cols.map((col, i) => (
+                <section
+                  className="column"
+                  key={col}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => drag && requestMove(drag, col)}
+                >
+                  <div className="col-head">
+                    <i className={`dot d${i}`} />
+                    <b>{col}</b>
+                    <em>{shown.filter((t) => t.status === col).length}</em>
+                    <button>•••　＋</button>
+                  </div>
+                  <div className="cards">
+                    {shown
+                      .filter((t) => t.status === col)
+                      .map((t) => (
+                        <article
+                          draggable
+                          onDragStart={() => setDrag(t.id)}
+                          onClick={() => setSelected(t)}
+                          key={t.id}
+                        >
+                          <div className="meta">
+                            <span className={t.type.toLowerCase()}>
+                              {t.type === "Bug"
+                                ? "◆"
+                                : t.type === "Feature"
+                                  ? "⬡"
+                                  : "■"}{" "}
+                              {t.type}
+                            </span>
+                            <button>•••</button>
+                          </div>
+                          <h3>{t.title}</h3>
+                          <div className="tags">
+                            <b className={t.priority.toLowerCase()}>
+                              ⚑ {t.priority}
+                            </b>
+                            <b>{t.tag}</b>
+                          </div>
+                          <footer>
+                            <strong>{t.id}</strong>
+                            {t.due && (
+                              <span
+                                className={t.due === "Today" ? "today" : ""}
+                              >
+                                ◷ {t.due}
+                              </span>
+                            )}
+                            <span>▱ {t.comments}</span>
+                            <Avatar id={t.who} />
+                          </footer>
+                        </article>
+                      ))}
+                    <button className="add" onClick={() => setModal(true)}>
+                      ＋ Add ticket
+                    </button>
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="list">
+              <div className="row head">
+                <span>Ticket</span>
+                <span>Status</span>
+                <span>Priority</span>
+                <span>Assignee</span>
+              </div>
+              {shown.map((t) => (
+                <button
+                  className="row"
+                  key={t.id}
+                  onClick={() => setSelected(t)}
+                >
+                  <span>
+                    <b>{t.id}</b>
+                    {t.title}
+                  </span>
+                  <span>{t.status}</span>
+                  <span className={t.priority.toLowerCase()}>{t.priority}</span>
+                  <span>{people[t.who][0]}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+      {(modal || selected) && (
+        <div
+          className="overlay"
+          onMouseDown={() => {
+            setModal(false);
+            setSelected(null);
+          }}
+        >
+          <div className={`modal ${selected ? "ticket-modal" : ""}`} onMouseDown={(e) => e.stopPropagation()}>
+            <button
+              className="close"
+              onClick={() => {
+                setModal(false);
+                setSelected(null);
+              }}
+            >
+              ×
+            </button>
+            {modal ? (
+              <>
+                <small>PRINTFLOW / NEW TICKET</small>
+                <h2>Create a ticket</h2>
+                <label>
+                  Title
+                  <input
+                    autoFocus
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && create()}
+                    placeholder="What needs to be done?"
+                  />
+                </label>
+                <div className="form-row">
+                  <label>
+                    Type
+                    <select>
+                      <option>Task</option>
+                      <option>Bug</option>
+                      <option>Feature</option>
+                    </select>
+                  </label>
+                  <label>
+                    Priority
+                    <select>
+                      <option>Medium</option>
+                      <option>High</option>
+                      <option>Urgent</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Description
+                  <textarea placeholder="Add context or acceptance criteria..." />
+                </label>
+                <div className="modal-actions">
+                  <button onClick={() => setModal(false)}>Cancel</button>
+                  <button className="primary" onClick={create}>
+                    Create ticket
+                  </button>
+                </div>
+              </>
+            ) : (
+              selected && (
+                <>
+                  <small>
+                    {selected.id} · {selected.type}
+                  </small>
+                  <h2>{selected.title}</h2>
+                  <div className="details">
+                    <label>
+                      Status
+                      <select
+                        value={selected.status}
+                        onChange={(e) =>
+                          requestMove(selected.id, e.target.value as Status)
+                        }
+                      >
+                        {cols.map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Priority
+                      <b className={selected.priority.toLowerCase()}>
+                        ⚑ {selected.priority}
+                      </b>
+                    </label>
+                    <label>
+                      Assignee
+                      <span>
+                        <Avatar id={selected.who} />
+                        {people[selected.who][0]}
+                      </span>
+                    </label>
+                    <label>
+                      Due date<b>{selected.due || "No due date"}</b>
+                    </label>
+                  </div>
+                  <div className="comment-box">
+                    <Avatar id="AK" />
+                    <div>
+                      <textarea
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Add a comment… Use @ to mention someone"
+                      />
+                      <div>
+                        <span>☺　📎　@</span>
+                        <button disabled={!comment.trim()} onClick={addComment}>
+                          Comment
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="activity-heading">
+                    <h4>Activity</h4><span>{selected.comments} comments</span>
+                  </div>
+                  <div className="activity-list">
+                    {(activities[selected.id] || []).length ? (
+                      (activities[selected.id] || []).map((item) => (
+                        <div className={`activity ${item.kind}`} key={item.id}>
+                          <Avatar id={item.author} />
+                          <div>
+                            <p><b>{people[item.author][0]}</b>{item.kind === "status" ? " changed the status" : " commented"}</p>
+                            {item.kind === "status" && <p className="status-change"><span>{item.from}</span><i>→</i><span>{item.to}</span></p>}
+                            <p className="activity-text">{item.text}</p>
+                            <small>{item.time}　·　Reply</small>
+                          </div>
+                        </div>
+                      ))
+                    ) : <p className="empty-activity">No activity yet. Add the first comment.</p>}
+                  </div>
+                </>
+              )
+            )}
+          </div>
+        </div>
+      )}
+      {pending && (
+        <div className="status-overlay" onMouseDown={() => setPending(null)}>
+          <div className="status-dialog" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="status-icon">↗</div>
+            <div><small>STATUS CHANGE</small><h3>Move {pending.id} to {pending.to}?</h3></div>
+            <p><span>{pending.from}</span><i>→</i><span>{pending.to}</span></p>
+            <label>Comment <em>Optional</em><textarea autoFocus value={statusComment} onChange={(e)=>setStatusComment(e.target.value)} placeholder="Explain what changed, share a handoff note, or mention @someone…" /></label>
+            <div className="modal-actions"><button onClick={()=>setPending(null)}>Cancel</button><button className="primary" onClick={confirmMove}>Move ticket</button></div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

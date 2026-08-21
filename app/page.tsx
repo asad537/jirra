@@ -205,7 +205,7 @@ export default function Home() {
     [assigneeFilter, setAssigneeFilter] = useState("All assignees"),
     [typeFilter, setTypeFilter] = useState("All types"),
     [priorityFilter, setPriorityFilter] = useState("All priorities"),
-    [view, setView] = useState<"Board" | "List" | "Reports">("Board"),
+    [view, setView] = useState<"Board" | "List" | "Reports" | "Users">("Board"),
     [modal, setModal] = useState(false),
     [selected, setSelected] = useState<Ticket | null>(null),
     [drag, setDrag] = useState(""),
@@ -213,6 +213,8 @@ export default function Home() {
     [newType, setNewType] = useState("Task"),
     [newPriority, setNewPriority] = useState("Medium"),
     [newDescription, setNewDescription] = useState(""),
+    [newAssigneeId, setNewAssigneeId] = useState<number | null>(null),
+    [teamMembers, setTeamMembers] = useState<Array<{id:number;name:string;email:string;color:string;initials:string}>>([]),
     [projects, setProjects] = useState<Project[]>(initialProjects),
     [activeProject, setActiveProject] = useState<Project>(initialProjects[0]),
     [projectName, setProjectName] = useState(""),
@@ -290,6 +292,10 @@ export default function Home() {
       setDataError(e instanceof Error ? e.message : "Unable to load projects");
     }
   };
+  const loadMembers = async () => {
+    const response = await apiFetch("/api/members", { cache: "no-store" });
+    if (response.ok) { const data=await response.json(); setTeamMembers(data.members); setNewAssigneeId((current)=>current??data.members[0]?.id??null); }
+  };
   const loadData = async (key = activeProject.key) => {
     try {
       const response = await apiFetch(
@@ -365,6 +371,7 @@ export default function Home() {
         if (response.ok) {
           setUser(data.user);
           await loadProjects();
+          await loadMembers();
           await loadData("PF");
         }
       } finally { setAuthLoading(false); }
@@ -494,6 +501,16 @@ export default function Home() {
       setSyncing(false);
     }
   };
+  const changeAssignee = async (ticketId: string, assigneeId: number) => {
+    setSyncing(true);
+    try {
+      const response=await apiFetch("/api/tickets",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:ticketId,assigneeId})});
+      const data=await response.json(); if(!response.ok)throw new Error(data.error||"Assignment failed");
+      await loadData(activeProject.key);
+      const member=teamMembers.find(m=>m.id===assigneeId); if(member)setSelected(s=>s?{...s,who:member.initials}:s);
+      flash(`Assigned to ${member?.name||"team member"}`);
+    } catch(error){flash(error instanceof Error?error.message:"Assignment failed");setSyncing(false);}
+  };
   const create = async () => {
     if (!title.trim()) return;
     setSyncing(true);
@@ -507,6 +524,7 @@ export default function Home() {
           priority: newPriority,
           description: newDescription,
           assignee: "AK",
+          assigneeId: newAssigneeId,
           projectKey: activeProject.key,
         }),
       });
@@ -528,7 +546,7 @@ export default function Home() {
       const response = await apiFetch("/api/auth/login", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:loginEmail,password:loginPassword}) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Login failed");
-      setUser(data.user); await loadProjects(); await loadData("PF");
+      setUser(data.user); await loadProjects(); await loadMembers(); await loadData("PF");
     } catch (error) { setLoginError(error instanceof Error ? error.message : "Login failed"); }
     finally { setAuthLoading(false); }
   };
@@ -586,7 +604,7 @@ export default function Home() {
         </nav>
         <div className="aside-bottom">
           <a onClick={() => setView("Reports")}>▥ Reports</a>
-          <a onClick={() => { setPanel("admin"); void loadAdmin(); }}>♛ Admin Console</a>
+          <a onClick={() => { setView("Users"); setPanel(null); void loadAdmin(); }}>♛ User Management</a>
           <a onClick={() => { setPanel("settings"); void loadAdmin(); }}>⚙ Settings</a>
           <div className="profile">
             <button
@@ -676,12 +694,13 @@ export default function Home() {
             >
               ◫ Reports
             </button>
+            {user.role === "super_admin" && <button className={view === "Users" ? "on" : ""} onClick={() => { setView("Users"); void loadAdmin(); }}>♛ Users</button>}
             <span />
             <button onClick={() => setPanel("settings")}>
               ⚙ Project settings
             </button>
           </div>
-          <div className="tools">
+          {view !== "Users" && <div className="tools">
             <div>
               <select
                 aria-label="Filter by status"
@@ -747,8 +766,28 @@ export default function Home() {
               <Avatar id="ZM" />
               <Avatar id="SR" />
             </button>
-          </div>
-          {view === "Board" ? (
+          </div>}
+          {view === "Users" ? (
+            <div className="users-page">
+              <div className="users-heading"><div><small>ADMINISTRATION</small><h2>User management</h2><p>Accounts, system roles and access status ek hi jagah manage karein.</p></div><button className="primary" onClick={()=>setPanel("invite")}>＋ Add user</button></div>
+              <div className="user-stats">
+                <div><small>Total users</small><b>{adminUsers.length}</b></div>
+                <div><small>Active</small><b>{adminUsers.filter(x=>x.active).length}</b></div>
+                <div><small>Disabled</small><b>{adminUsers.filter(x=>!x.active).length}</b></div>
+                <div><small>Super admins</small><b>{adminUsers.filter(x=>x.role==="super_admin").length}</b></div>
+              </div>
+              <section className="role-guide"><b>Available roles</b><span><strong>Super Admin</strong> — users, settings aur tamam projects manage kar sakta hai.</span><span><strong>User</strong> — assigned projects aur tickets par kaam kar sakta hai. Project level par Manager, Member ya Viewer access diya ja sakta hai.</span></section>
+              <div className="users-table">
+                <div className="user-row user-head"><span>User</span><span>System role</span><span>Status</span><span>Actions</span></div>
+                {adminUsers.map(member=><div className="user-row" key={member.id}>
+                  <span className="user-identity"><i className="avatar" style={{background:"#6052d7"}}>{member.name.split(/\s+/).map(x=>x[0]).join("").slice(0,2)}</i><i><b>{member.name}</b><small>{member.email}</small></i></span>
+                  <span><select value={member.role} disabled={member.id===user.id} onChange={async e=>{await apiFetch(`/api/users/${member.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({role:e.target.value,active:Boolean(member.active)})});await loadAdmin();flash("User role updated");}}><option value="user">User</option><option value="super_admin">Super Admin</option></select></span>
+                  <span><em className={member.active?"status-active":"status-disabled"}>{member.active?"Active":"Disabled"}</em></span>
+                  <span><button disabled={member.id===user.id} onClick={async()=>{await apiFetch(`/api/users/${member.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({role:member.role,active:!member.active})});await loadAdmin();flash(member.active?"User disabled":"User enabled");}}>{member.active?"Disable":"Enable"}</button></span>
+                </div>)}
+              </div>
+            </div>
+          ) : view === "Board" ? (
             <div className="board">
               {cols.map((col, i) => (
                 <section
@@ -840,7 +879,7 @@ export default function Home() {
                   </span>
                   <span>{t.status}</span>
                   <span className={t.priority.toLowerCase()}>{t.priority}</span>
-                  <span>{people[t.who][0]}</span>
+                  <span>{teamMembers.find((m)=>m.initials===t.who)?.name || people[t.who]?.[0] || "Unassigned"}</span>
                 </button>
               ))}
             </div>
@@ -969,6 +1008,12 @@ export default function Home() {
                   </label>
                 </div>
                 <label>
+                  Assignee
+                  <select value={newAssigneeId??""} onChange={(e)=>setNewAssigneeId(Number(e.target.value))}>
+                    {teamMembers.map((member)=><option key={member.id} value={member.id}>{member.name} · {member.email}</option>)}
+                  </select>
+                </label>
+                <label>
                   Description
                   <textarea
                     value={newDescription}
@@ -1016,10 +1061,9 @@ export default function Home() {
                     </label>
                     <label>
                       Assignee
-                      <span>
-                        <Avatar id={selected.who} />
-                        {people[selected.who][0]}
-                      </span>
+                      <select value={teamMembers.find(m=>m.initials===selected.who)?.id??""} onChange={(e)=>void changeAssignee(selected.id,Number(e.target.value))} disabled={syncing}>
+                        {teamMembers.map((member)=><option key={member.id} value={member.id}>{member.name}</option>)}
+                      </select>
                     </label>
                     <label>
                       Due date<b>{selected.due || "No due date"}</b>
@@ -1055,7 +1099,7 @@ export default function Home() {
                           <Avatar id={item.author} />
                           <div>
                             <p>
-                              <b>{people[item.author][0]}</b>
+                              <b>{people[item.author]?.[0] || item.author}</b>
                               {item.kind === "status"
                                 ? " changed the status"
                                 : item.kind === "created"

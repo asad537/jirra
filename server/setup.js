@@ -23,6 +23,7 @@ try {
   for (const [name,email,color] of users) {
     await connection.execute("INSERT IGNORE INTO users(name,email,password_hash,avatar_color) VALUES(?,?,?,?)", [name,email,await bcrypt.hash("Member123!", 10),color]);
   }
+  await connection.execute("UPDATE users SET global_role='manager' WHERE email='zara@jirra.local' AND global_role='user'");
   const [[admin]] = await connection.execute("SELECT id FROM users WHERE email=?", [adminEmail]);
   for (const p of [["PF","PrintFlow","Order, billing and production management","#ed9276"],["HD","HelpDesk","Customer support and service requests","#62a4cb"],["WB","Website Build","Website design and development","#55a987"]]) {
     await connection.execute("INSERT IGNORE INTO projects(project_key,name,description,color,created_by) VALUES(?,?,?,?,?)", [...p,admin.id]);

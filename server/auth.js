@@ -26,3 +26,8 @@ export function requireAdmin(req, res, next) {
   if (req.auth?.role !== "super_admin") return res.status(403).json({ error: "Super admin access required" });
   next();
 }
+
+export function requireManager(req, res, next) {
+  if (!["super_admin", "manager"].includes(req.auth?.role)) return res.status(403).json({ error: "Manager access required" });
+  next();
+}

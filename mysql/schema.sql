@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(100) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  global_role ENUM('super_admin','user') NOT NULL DEFAULT 'user',
+  global_role ENUM('super_admin','manager','user') NOT NULL DEFAULT 'user',
   avatar_color CHAR(7) NOT NULL DEFAULT '#6052d7',
   active BOOLEAN NOT NULL DEFAULT TRUE,
   last_login_at DATETIME NULL,

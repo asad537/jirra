@@ -250,6 +250,7 @@ export default function Home() {
     [inviteName, setInviteName] = useState(""),
     [inviteEmail, setInviteEmail] = useState(""),
     [invitePassword, setInvitePassword] = useState(""),
+    [inviteRole, setInviteRole] = useState("user"),
     [workspaceSettings, setWorkspaceSettings] = useState({workspaceName:"TaskFlow",allowInvites:true,emailNotifications:true,defaultView:"Board"});
   const shown = useMemo(
     () =>
@@ -438,7 +439,7 @@ export default function Home() {
   };
   const addUser = async () => {
     try {
-      const response = await apiFetch("/api/users", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:inviteName,email:inviteEmail,password:invitePassword,role:"user"}) });
+      const response = await apiFetch("/api/users", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:inviteName,email:inviteEmail,password:invitePassword,role:inviteRole}) });
       const data=await response.json(); if(!response.ok) throw new Error(data.error);
       setInviteName(""); setInviteEmail(""); setInvitePassword(""); await loadAdmin(); setPanel("admin"); flash("User added successfully");
     } catch(error) { flash(error instanceof Error ? error.message : "Unable to add user"); }
@@ -774,14 +775,14 @@ export default function Home() {
                 <div><small>Total users</small><b>{adminUsers.length}</b></div>
                 <div><small>Active</small><b>{adminUsers.filter(x=>x.active).length}</b></div>
                 <div><small>Disabled</small><b>{adminUsers.filter(x=>!x.active).length}</b></div>
-                <div><small>Super admins</small><b>{adminUsers.filter(x=>x.role==="super_admin").length}</b></div>
+                <div><small>Managers</small><b>{adminUsers.filter(x=>x.role==="manager").length}</b></div>
               </div>
-              <section className="role-guide"><b>Available roles</b><span><strong>Super Admin</strong> — users, settings aur tamam projects manage kar sakta hai.</span><span><strong>User</strong> — assigned projects aur tickets par kaam kar sakta hai. Project level par Manager, Member ya Viewer access diya ja sakta hai.</span></section>
+              <section className="role-guide"><b>3 roles</b><span><strong>Admin</strong> — users, settings aur tamam projects.</span><span><strong>Manager</strong> — projects, tickets aur assignments.</span><span><strong>User</strong> — assigned tickets par kaam.</span></section>
               <div className="users-table">
                 <div className="user-row user-head"><span>User</span><span>System role</span><span>Status</span><span>Actions</span></div>
                 {adminUsers.map(member=><div className="user-row" key={member.id}>
                   <span className="user-identity"><i className="avatar" style={{background:"#6052d7"}}>{member.name.split(/\s+/).map(x=>x[0]).join("").slice(0,2)}</i><i><b>{member.name}</b><small>{member.email}</small></i></span>
-                  <span><select value={member.role} disabled={member.id===user.id} onChange={async e=>{await apiFetch(`/api/users/${member.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({role:e.target.value,active:Boolean(member.active)})});await loadAdmin();flash("User role updated");}}><option value="user">User</option><option value="super_admin">Super Admin</option></select></span>
+                  <span><select value={member.role} disabled={member.id===user.id} onChange={async e=>{await apiFetch(`/api/users/${member.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({role:e.target.value,active:Boolean(member.active)})});await loadAdmin();flash("User role updated");}}><option value="user">User</option><option value="manager">Manager</option><option value="super_admin">Admin</option></select></span>
                   <span><em className={member.active?"status-active":"status-disabled"}>{member.active?"Active":"Disabled"}</em></span>
                   <span><button disabled={member.id===user.id} onClick={async()=>{await apiFetch(`/api/users/${member.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({role:member.role,active:!member.active})});await loadAdmin();flash(member.active?"User disabled":"User enabled");}}>{member.active?"Disable":"Enable"}</button></span>
                 </div>)}
@@ -1189,6 +1190,7 @@ export default function Home() {
                 <label>Full name<input autoFocus value={inviteName} onChange={e=>setInviteName(e.target.value)} placeholder="Full name" /></label>
                 <label>Email address<input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@company.com" /></label>
                 <label>Temporary password<input type="password" value={invitePassword} onChange={e=>setInvitePassword(e.target.value)} placeholder="Minimum 8 characters" /></label>
+                <label>Role<select value={inviteRole} onChange={e=>setInviteRole(e.target.value)}><option value="user">User</option><option value="manager">Manager</option><option value="super_admin">Admin</option></select></label>
                 <button
                   className="panel-primary"
                   disabled={inviteName.length<2||!inviteEmail.includes("@")||invitePassword.length<8}
